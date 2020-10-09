@@ -5,7 +5,7 @@ This is an eNB emulator application done in python3 to interact with MME (S1AP) 
 This application can be used to perform and simulate several EMM and ESM procedures, including user plane traffic.
 This application was tested with real MMEs (lab environment).
 
-<img src="eNB.png" width="50%">
+<p align="center"><img src="eNB.png" width="50%"></p>
 
 You have the capability to use a modem to perform external authentication with USIM.
 The modem needs to support the AT commands AT+CRSM and AT+CSIM. You can define the ttyUSBx to use in the options (-u).
@@ -57,7 +57,7 @@ Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in th
 
 This is the application user interface, where we can see the current options and procedures supported:
   
-  <img src="application.png" width="100%">
+  <p align="center"><img src="application.png" width="100%"></p>
   
 This application implements S1-U, so after an sucessful Attach with PDN Connectivy activation, you can use the laptop applications (browser, terminal, etc...) to send/receive traffic over the GTP-U connection towards the SGW using the session IP address, using a tunnel interface.
 
