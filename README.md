@@ -53,7 +53,7 @@ Options:
   -E IMEI, --imei=IMEI  IMEI-SV (16 digits)
   ```
  
-Nota: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN, or when you have multiple interfaces. With user plane activated, the default route points to a tunnel interface, so this gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address
+Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN, or when you have multiple interfaces. With user plane activated, the default route points to a tunnel interface, so this Gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address. In case of multiple interfaces, this IP addrress must be in the same network as the source interface used for eNB address (option -i).
 
 This is the application user interface, where we can see the current options and procedures supported:
   
