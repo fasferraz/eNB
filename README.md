@@ -53,7 +53,13 @@ Options:
   -E IMEI, --imei=IMEI  IMEI-SV (16 digits)
   ```
  
-Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN, or when you have multiple interfaces. With user plane activated, the default route points to a tunnel interface, so this Gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address. In case of multiple interfaces, this IP addrress must be in the same network as the source interface used for eNB address (option -i).
+Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN. With user plane activated, the default route points to a tunnel interface, so this Gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address. In case of multiple interfaces, this IP addrress must be in the same network as the source interface used for eNB address (option -i).
+
+
+Example usage fo eNB address - 172.16.168.130, and MME address - 172.16.168.8 (eNB and MME in the same LAN):
+
+```python3 eNB_LOCAL.py -i 172.16.168.130 -m 172.16.168.8```
+
 
 This is the application user interface, where we can see the current options and procedures supported:
   
