@@ -5,7 +5,7 @@ This is an eNB emulator application done in python3 to interact with MME (S1AP) 
 This application can be used to perform and simulate several EMM and ESM procedures, including user plane traffic.
 This application was tested with real MMEs (lab environment).
 
-<img src="eNB.png" width="60%">
+<img src="eNB.png" width="50%">
 
 You have the capability to use a modem to perform external authentication with USIM.
 The modem needs to support the AT commands AT+CRSM and AT+CSIM. You can define the ttyUSBx to use in the options (-u).
