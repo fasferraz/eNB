@@ -9,7 +9,7 @@ This application was tested with real MMEs (lab environment).
 
 You have the capability to use a modem to perform external authentication with USIM.
 The modem needs to support the AT commands AT+CRSM and AT+CSIM. You can define the ttyUSBx to use in the options (-u).
-Note: If no modem is used a default KASME and XRES are used (check corresponding valiables inside *session_dict_initialization* function).
+Note: If no modem is used a default KASME and XRES are used (check corresponding variables inside *session_dict_initialization* function).
 
 I had previously done some experiments with SCTP using the native socket module from python3, but starting a ASN.1 module for S1AP from scratch was a big challenge. Fortunately I found some magnificent python modules for ASN.1 and S1AP done by P1 Security that I highly recommend:
 
@@ -31,7 +31,7 @@ from Crypto.Hash import SHA256
 ```
 
 Many variables needed for SA1P and NAS are defined inside the *session_dict_initialization* function. 
-You can change them to meet your onwn needs.
+You can change them to meet your own needs.
 
 When you call the scritp these are the options available:
 
@@ -53,19 +53,19 @@ Options:
   -E IMEI, --imei=IMEI  IMEI-SV (16 digits)
   ```
  
-Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN. With user plane activated, the default route points to a tunnel interface, so this Gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address. In case of multiple interfaces, this IP addrress must be in the same network as the source interface used for eNB address (option -i).
+Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN. With user plane activated, the default route points to a tunnel interface, so this Gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address. In case of multiple interfaces, this IP address must be in the same network as the source interface used for eNB address (option -i).
 
 
-Example usage fo eNB address - 172.16.168.130, and MME address - 172.16.168.8 (eNB and MME in the same LAN):
+Example usage fo eNB address - 172.16.168.130, and MME address - 172.16.168.8 (eNB and MME in the same LAN), and ttyUSB2:
 
-```python3 eNB_LOCAL.py -i 172.16.168.130 -m 172.16.168.8```
+```python3 eNB_LOCAL.py -i 172.16.168.130 -m 172.16.168.8 -u /dev/ttyUSB2```
 
 
 This is the application user interface, where we can see the current options and procedures supported:
   
   <p align="center"><img src="images/application.png" width="100%"></p>
   
-This application implements S1-U, so after an sucessful Attach with PDN Connectivy activation, you can use the laptop applications (browser, terminal, etc...) to send/receive traffic over the GTP-U connection towards the SGW using the session IP address, using a tunnel interface.
+This application implements S1-U, so after an successful Attach with PDN Connectivity activation, you can use the laptop applications (browser, terminal, etc...) to send/receive traffic over the GTP-U connection towards the SGW using the session IP address, using a tunnel interface.
 
 In case the session is a NB-IoT session you can also send the user plane over NAS.
 
@@ -97,7 +97,7 @@ In terms of procedures, the application supports the following ones:
 - TAU Periodic
 - Service Request
 - UE Context Release
-- Send SMS (a predifined one)
+- Send SMS (a predefined one)
 - Control Plane Service Request
 - E-RAB Modification Indication
 - Secondary RAT Data Usage Report
