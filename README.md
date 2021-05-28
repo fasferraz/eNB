@@ -8,8 +8,13 @@ This application was tested with real MMEs (lab environment).
 <p align="center"><img src="images/eNB.png" width="50%"></p>
 
 You have the capability to use a modem to perform external authentication with USIM.
-The modem needs to support the AT commands AT+CRSM and AT+CSIM. You can define the ttyUSBx to use in the options (-u).
-Note: If no modem is used a default KASME and XRES are used (check corresponding variables inside *session_dict_initialization* function).
+The modem needs to support the AT commands AT+CSIM. You can define the ttyUSBx to use in the options (-u).
+
+External authentication with USIM can also be performed with a Smartcard reader, or even through https (see https://github.com/fasferraz/USIM-https-server)
+
+Note: If none of these options is defined, a default KASME and XRES are used (check corresponding variables inside *session_dict_initialization* function).
+
+
 
 I had previously done some experiments with SCTP using the native socket module from python3, but starting a ASN.1 module for S1AP from scratch was a big challenge. Fortunately I found some magnificent python modules for ASN.1 and S1AP done by P1 Security that I highly recommend:
 
@@ -17,18 +22,46 @@ https://github.com/P1sec
 
 They have plenty of modules for almost anything related to Mobile Developments, but for my project i just used the S1AP from pycrate_asn1dir module, and CM from the CryptoMobile module (that has all the ciphering and integrity protocols needed for NAS). 
 In order to derive the integrity and ciphering keys from KASME/CK/IK) i used another module: the Crypto.Hash (pip3 install pycryptodome) that has the HMAC and SHA256 functions needed for KDF.
+
 For serial communication towards the modem I use the pyserial module (pip3 install pyserial)
+
+For smartcard reader communication I use the smartcard module.
+
+For https request to https server I use the requests module.
+
 
 So in resume, these are the required external (non-standard) modules:
 
 ```
-import serial
 from pycrate_asn1dir import S1AP
 from pycrate_asn1rt.utils import *
 from CryptoMobile.CM import *
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 ```
+
+For IMSI, and authentication these are the required external (non-standard) modules:
+
+(at least one of these options should be available if we need to use real USIM)
+
+```
+try:
+   import serial
+except:
+    pass
+try:
+    from smartcard.System import readers
+    from smartcard.util import toHexString,toBytes
+except:
+    pass
+try:    
+    import requests
+    requests.packages.urllib3.disable_warnings()
+except:
+    pass
+    
+```
+
 
 Many variables needed for SA1P and NAS are defined inside the *session_dict_initialization* function. 
 You can change them to meet your own needs.
@@ -48,7 +81,8 @@ Options:
   -g GATEWAY_IP_ADDRESS, --gateway_ip_address=GATEWAY_IP_ADDRESS
                         gateway IP address
   -u SERIAL_INTERFACE, --usb_device=SERIAL_INTERFACE
-                        usb tty (e.g /dev/ttyUSBx)
+                        modem port (i.e. COMX, or /dev/ttyUSBX), smartcard
+                        reader index (0, 1, 2, ...), or server for https
   -I IMSI, --imsi=IMSI  IMSI (15 digits)
   -E IMEI, --imei=IMEI  IMEI-SV (16 digits)
   ```
