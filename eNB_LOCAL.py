@@ -2361,7 +2361,7 @@ def main():
     parser.add_option("-i", "--ip", dest="eNB_ip", help="eNB Local IP Address")
     parser.add_option("-m", "--mme", dest="mme_ip", help="MME IP Address")
     parser.add_option("-g", "--gateway_ip_address", dest="gateway_ip_address", help="gateway IP address") 
-    parser.add_option("-u", "--usb_device", dest="serial_interface", help="usb tty (e.g /dev/ttyUSBx)")     
+    parser.add_option("-u", "--usb_device", dest="serial_interface", help="modem port (i.e. COMX, or /dev/ttyUSBX), smartcard reader index (0, 1, 2, ...), or server for https")     
     parser.add_option("-I", "--imsi", dest="imsi", help="IMSI (15 digits)")
     parser.add_option("-E", "--imei", dest="imei", help="IMEI-SV (16 digits)")    
     (options, args) = parser.parse_args()
