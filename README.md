@@ -112,7 +112,7 @@ The application supports currently the following options:
 - Mobile Identity Type: IMSI or GUTI
 - Attach PDN: Default APN, or Specific APN
 - Session Type: 4G, 5G or NB-IoT
-- NB-IoT Session Type: No PSM and eDRX, PSM, eDRX or both PSM and eDRX
+- Session Sub-Type: No PSM and No eDRX, PSM, eDRX or both PSM and eDRX
 - PDN Type ipv4, ipv6 or ipv4v6
 - Control Plane Service Request with Radio Bearer or without Radio Bearer
 - Attach Type: EPS Attach or Combined EPS/IMSI Attach
