@@ -143,3 +143,4 @@ In terms of procedures, the application supports the following ones:
   
   
   
+You can also find more information in https://fabricioapps.blogspot.com/2020/07/mme-part-i-enb-emulator.html
