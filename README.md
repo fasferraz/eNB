@@ -36,6 +36,7 @@ So in resume, these are the required external (non-standard) modules:
 from pycrate_asn1dir import S1AP
 from pycrate_asn1rt.utils import *
 from CryptoMobile.CM import *
+from CryptoMobile.Milenage import Milenage
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 ```
@@ -62,6 +63,8 @@ except:
     
 ```
 
+For authentication the application also accepts Ki and OP/OPC for Milenage operation (usefull for testing with developments like open5gs, where the USIM parameters are defined in the HSS/UDR).
+
 
 Many variables needed for SA1P and NAS are defined inside the *session_dict_initialization* function. 
 You can change them to meet your own needs.
@@ -85,6 +88,12 @@ Options:
                         reader index (0, 1, 2, ...), or server for https
   -I IMSI, --imsi=IMSI  IMSI (15 digits)
   -E IMEI, --imei=IMEI  IMEI-SV (16 digits)
+  -K KI, --ki=KI        ki for Milenage (if not using option -u)
+  -P OP, --op=OP        op for Milenage (if not using option -u)
+  -C OPC, --opc=OPC     opc for Milenage (if not using option -u)
+  -o PLMN, --operator=PLMN
+                        Operator MCC+MNC
+  
   ```
  
 Note: Gateway IP Address (option -g) is needed when the MME or SGW are not in the local LAN. With user plane activated, the default route points to a tunnel interface, so this Gateway IP Address is needed so that MME address and SGW address are also reachable (using /32 routes) using this IP as next-hop address. In case of multiple interfaces, this IP address must be in the same network as the source interface used for eNB address (option -i).
