@@ -223,13 +223,13 @@ def bcd(chars):
     return bcd_bytes
 
 def return_plmn(mccmnc):
-   mccmnc = str(mccmnc)
-   if len(mccmnc)==5:
-       return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + 'f' + mccmnc[3] + mccmnc[4]) 
-   elif len(mccmnc)==6:
-       return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + mccmnc[5] + mccmnc[3] + mccmnc[4]) 
-   else:
-     return b''
+    mccmnc = str(mccmnc)
+    if len(mccmnc)==5:
+        return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + 'f' + mccmnc[3] + mccmnc[4]) 
+    elif len(mccmnc)==6:
+        return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + mccmnc[5] + mccmnc[3] + mccmnc[4]) 
+    else:
+        return b''
 
 
 def return_apn(apn):
