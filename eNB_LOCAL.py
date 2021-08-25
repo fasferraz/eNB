@@ -2440,12 +2440,12 @@ def main():
     if options.ki is not None and (options.op is not None or options.opc is not None):
         session_dict['LOCAL_KEYS'] = False
         session_dict['LOCAL_MILENAGE'] = True
-        session_dict['KI'] = hex2bytes(options.ki)
+        session_dict['KI'] = unhexlify(options.ki)
         if options.op is not None:
-            session_dict['OP'] = hex2bytes(options.op)
+            session_dict['OP'] = unhexlify(options.op)
             session_dict['OPC'] = None
         elif options.opc is not None:
-            session_dict['OPC'] = hex2bytes(options.opc)
+            session_dict['OPC'] = unhexlify(options.opc)
             session_dict['OP'] = None
     else:
         session_dict['LOCAL_MILENAGE'] = False
