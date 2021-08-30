@@ -25,7 +25,7 @@ In order to derive the integrity and ciphering keys from KASME/CK/IK) i used ano
 
 For serial communication towards the modem I use the pyserial module (pip3 install pyserial)
 
-For smartcard reader communication I use the smartcard module (pyscard module from https://pypi.org/project/pyscard/).
+For smartcard reader communication I use the smartcard module (pyscard module from https://pypi.org/project/pyscard/) and card module (from https://github.com/mitshell/card).
 
 For https request to https server I use the requests module.
 
@@ -53,6 +53,10 @@ except:
 try:
     from smartcard.System import readers
     from smartcard.util import toHexString,toBytes
+    try:
+        from card.USIM import *
+    except:
+        pass
 except:
     pass
 try:    
