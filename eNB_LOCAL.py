@@ -1289,6 +1289,7 @@ def ProcessDownlinkNAS(dic):
             elif i[0] == 'guti':
                 dic['GUTI'] = i[1]
                 dic['S-TMSI'] = i[1][-5:]
+		dic['ENCODED-GUTI'] = dic['GUTI']
                 dic = eMENU.print_log(dic, eNAS.decode_eps_mobile_identity(dic['GUTI'] ))
                 
             elif i[0] == 'ms identity':
