@@ -572,7 +572,7 @@ def S1SetupRequest(dic):
     IEs.append({'id': 59, 'value': ('Global-ENB-ID', {'pLMNidentity': dic['ENB-PLMN'], 'eNB-ID' : ('macroENB-ID', (dic['ENB-ID'], 20))}), 'criticality': 'reject'})
     IEs.append({'id': 60, 'value': ('ENBname', dic['ENB-NAME']), 'criticality': 'ignore'})    
     if dic['S1-TYPE'] == "4G" :
-        IEs.append({'id': 64, 'value': ('SupportedTAs', [{'tAC': dic['ENB-TAC'], 'broadcastPLMNs': [dic['ENB-PLMN']]}]), 'criticality': 'reject'})    
+        IEs.append({'id': 64, 'value': ('SupportedTAs', [{'tAC': dic['ENB-TAC1'], 'broadcastPLMNs': [dic['ENB-PLMN']]}, {'tAC': dic['ENB-TAC2'], 'broadcastPLMNs': [dic['ENB-PLMN']]}]), 'criticality': 'reject'})    		
     elif dic['S1-TYPE'] == "NBIOT":
         IEs.append({'id': 64, 'value': ('SupportedTAs', [{'tAC': dic['ENB-TAC-NBIOT'], 'broadcastPLMNs': [dic['ENB-PLMN']], 'iE-Extensions': [{'id':232, 'criticality': 'reject', 'extensionValue':('RAT-Type','nbiot')}]}]), 'criticality': 'reject'})        
     elif dic['S1-TYPE'] == "BOTH":
