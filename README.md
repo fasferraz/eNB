@@ -132,7 +132,7 @@ The application supports currently the following options:
 - TAU Type: TA Updating, Combined TA/LA Updating or Combined TA/LA Updating with IMSI Attach
 - Process Paging: Enabled or Disabled
 - SMS Update type: Additional Update Type SMS Only: False or True
-- eNB Cell can change
+- eNB Cell and TAC can change
 
 In terms of procedures, the application supports the following ones:
 
