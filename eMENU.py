@@ -32,7 +32,7 @@ menu_list = [ '  0. Show current settings',     \
               '  9. Set TAU type (for option 22)',             \
               ' 10. Set Process Paging',             \
               ' 11. Set SMS (AdditionalUpdateType)',             \
-              ' 12. Set eNB-CellID',             \
+              ' 12. Set eNB-CellID/TAC',             \
               ' 13. Set P-CSCF Restoration Support',             \
               ' ',                              \
               ' 15. S1 Setup',          \
@@ -266,9 +266,11 @@ def ProcessMenu(PDU, client, session_dict, msg):
     elif msg == "12\n":
         if session_dict['ENB-CELLID'] == 1000000:
             session_dict['ENB-CELLID'] = 2000000
+            session_dict['ENB-TAC'] = session_dict['ENB-TAC2']        
             session_dict = print_log(session_dict, "eNB CellID: 2000000")
         elif session_dict['ENB-CELLID'] == 2000000:            
             session_dict['ENB-CELLID'] = 1000000
+            session_dict['ENB-TAC'] = session_dict['ENB-TAC1']          
             session_dict = print_log(session_dict, "eNB CellID: 1000000")
 
     elif msg == "13\n":
