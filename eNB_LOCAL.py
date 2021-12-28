@@ -129,7 +129,9 @@ def session_dict_initialization(session_dict):
     session_dict['PDN-ADDRESS-IPV4'] = None
     session_dict['PDN-ADDRESS-IPV6'] = None
     
-    session_dict['ENB-TAC'] = b'\x00\x01'
+    session_dict['ENB-TAC1'] = b'\x00\x01'
+    session_dict['ENB-TAC2'] = b'\x00\x03'
+    session_dict['ENB-TAC'] = session_dict['ENB-TAC1']
     session_dict['ENB-TAC-NBIOT'] = b'\x00\x02' 
     session_dict['ENB-TAC-NBIOT'] = b'\xfb\xf4'     
     session_dict['ENB-ID'] = 1
