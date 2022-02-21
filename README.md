@@ -157,3 +157,10 @@ In terms of procedures, the application supports the following ones:
   
   
 You can also find more information in https://fabricioapps.blogspot.com/2020/07/mme-part-i-enb-emulator.html
+
+# Update 
+Application now also supports:
+
+- Emergency Attach (option 8)
+- EPS Mobility Identity can also be IMEI (for Emergency Attach. Option 2)
+- PDN Connectivity Request with Request Type = "Emergency" (Attach normally, then set Attach Type to "EPS Emergency Attach", and when chosing option 40, Request Type will be equal to "Emergency")
