@@ -1734,7 +1734,11 @@ def InitialUEMessage(dic):
         IEs.append({'id': 67, 'value': ('TAI', {'pLMNidentity': dic['ENB-PLMN'], 'tAC': dic['ENB-TAC-NBIOT']}), 'criticality': 'reject'})        
         
     IEs.append({'id': 100, 'value': ('EUTRAN-CGI', {'cell-ID': (dic['ENB-CELLID'], 28), 'pLMNidentity': dic['ENB-PLMN']}), 'criticality': 'ignore'})
-    IEs.append({'id': 134, 'value': ('RRC-Establishment-Cause', 'mo-Signalling'), 'criticality': 'ignore'})
+    if dic['ATTACH-TYPE'] == 6: #emergency
+        IEs.append({'id': 134, 'value': ('RRC-Establishment-Cause', 'emergency'), 'criticality': 'ignore'})
+    else:    
+        IEs.append({'id': 134, 'value': ('RRC-Establishment-Cause', 'mo-Signalling'), 'criticality': 'ignore'})
+	
     if dic['S-TMSI'] != None:
         IEs.append({'id': 96, 'value': ('S-TMSI', {'mMEC': dic['S-TMSI'][0:1], 'm-TMSI': dic['S-TMSI'][1:5]}), 'criticality': 'reject'})
 #    IEs.append({'id': 75, 'value': ('GUMMEI', {'pLMN-Identity': dic['ENB-PLMN'], 'mME-Group-ID': dic['MME-GROUP-ID'], 'mME-Code': dic['MME-CODE']}), 'criticality': 'reject'})
