@@ -55,8 +55,11 @@ menu_list = [ '  0. Show current settings',     \
               ' 50. Activate GTP-U/IP over ControlPlane',            \
               ' 51. Deactivate GTP-U/IP over ControlPlane',          \
               ' ',                              \
+              ' 60. Set Non-IP Packet to Send',            \
+              ' 61. Send Non-IP Packet',          \
+              ' ',                              \
               ' 99. Clear Log',                 \
-              '  Q. Quit' ]  
+              '  Q. Quit' ]
 
 
 class bcolors:
@@ -126,7 +129,7 @@ def ProcessMenu(PDU, client, session_dict, msg):
             session_dict = print_log(session_dict, "PSM/eDRX: eDRX Only")
         elif session_dict['SESSION-SESSION-TYPE'] == "BOTH":          
             session_dict = print_log(session_dict, "PSM/eDRX: PSM + eDRX")       
-        session_dict = print_log(session_dict, "PDP Type (1-> IPv4, 2-> IPv6, 3-> IPv4v6): " + str( session_dict['PDP-TYPE'])) 
+        session_dict = print_log(session_dict, "PDP Type (1-> IPv4, 2-> IPv6, 3-> IPv4v6, 5-> Non-IP): " + str( session_dict['PDP-TYPE'])) 
         if session_dict['CPSR-TYPE'] == 0: # NO-RADIO-BEARER
             session_dict = print_log(session_dict, "CPSR Type: No Radio Bearer")
         elif session_dict['CPSR-TYPE'] == 8: # RADIO-BEARER
@@ -222,11 +225,12 @@ def ProcessMenu(PDU, client, session_dict, msg):
 
     elif msg == "6\n":
         if session_dict['PDP-TYPE'] == 3:
-            session_dict['PDP-TYPE'] = 1
-        
+            session_dict['PDP-TYPE'] = 5
+        elif session_dict['PDP-TYPE'] == 5:
+            session_dict['PDP-TYPE'] = 1        
         else:
             session_dict['PDP-TYPE'] += 1
-        session_dict = print_log(session_dict, "PDP Type (1-> IPv4, 2-> IPv6, 3-> IPv4v6): " + str( session_dict['PDP-TYPE']))          
+        session_dict = print_log(session_dict, "PDP Type (1-> IPv4, 2-> IPv6, 3-> IPv4v6, 5-> Non-IP): " + str( session_dict['PDP-TYPE']))          
   
     elif msg == "7\n":
         if session_dict['CPSR-TYPE'] == 0: # NO-RADIO-BEARER
@@ -504,6 +508,29 @@ def ProcessMenu(PDU, client, session_dict, msg):
             session_dict = print_log(session_dict, "GTP-U/IP over ControlPlane: Desactivation")
         else:
             session_dict = print_log(session_dict, "GTP-U/IP over ControlPlane: Already inactive.")
+
+    elif msg == "60\n":
+        if session_dict['NON-IP-PACKET'] == 4:
+            session_dict['NON-IP-PACKET'] = 1       
+        else:
+            session_dict['NON-IP-PACKET'] += 1
+        session_dict = print_log(session_dict, "Non-IP Packet number: " + str(session_dict['NON-IP-PACKET']))          
+  
+    elif msg == "61\n":
+        if session_dict['STATE'] > 1:
+            session_dict['USER-DATA-CONTAINER'] = hex2bytes(session_dict['NON-IP-PACKETS'][session_dict['NON-IP-PACKET']-1])
+            session_dict = ProcessUplinkNAS('esm data transport', session_dict)
+                    
+            if session_dict['MME-UE-S1AP-ID'] > 0: #s1 up -
+                PDU.set_val(UplinkNASTransport(session_dict))
+            else:
+                session_dict = ProcessUplinkNAS('control plane service request with esm message container', session_dict)
+                PDU.set_val(InitialUEMessage(session_dict))
+            message = PDU.to_aper()  
+            client = set_stream(client, 1)
+            bytes_sent = client.send(message)
+
+
     elif msg == "99\n":
         session_dict['LOG'] = []
         print_menu(session_dict['LOG'])

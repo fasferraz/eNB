@@ -52,7 +52,11 @@ IMEISV = '1234567890123456'
 IMEI = '123456789012347'
 APN = 'internet'
 
-
+#Examples. Customize at your needs
+NON_IP_PACKET_1 = '0102030405060708090a'
+NON_IP_PACKET_2 = '0102030405060708090a0102030405060708090a'
+NON_IP_PACKET_3 = '0102030405060708090a0102030405060708090a0102030405060708090a'
+NON_IP_PACKET_4 = '0102030405060708090a0102030405060708090a0102030405060708090a0102030405060708090a'
 
 #   session_dict structure
 #
@@ -133,8 +137,7 @@ def session_dict_initialization(session_dict):
     session_dict['ENB-TAC1'] = b'\x00\x01'
     session_dict['ENB-TAC2'] = b'\x00\x03'
     session_dict['ENB-TAC'] = session_dict['ENB-TAC1']
-    session_dict['ENB-TAC-NBIOT'] = b'\x00\x02' 
-    session_dict['ENB-TAC-NBIOT'] = b'\xfb\xf4'     
+    session_dict['ENB-TAC-NBIOT'] = b'\x00\x02'     
     session_dict['ENB-ID'] = 1
     session_dict['ENB-CELLID'] = 1000000
     
@@ -211,6 +214,9 @@ def session_dict_initialization(session_dict):
     session_dict['NAS-KEY-SET-IDENTIFIER'] = 0
     
     session_dict['LOG'] = []
+
+    session_dict['NON-IP-PACKET'] = 1
+    session_dict['NON-IP-PACKETS'] = [NON_IP_PACKET_1, NON_IP_PACKET_2, NON_IP_PACKET_3, NON_IP_PACKET_4]
 
     return session_dict
 
@@ -1738,7 +1744,7 @@ def InitialUEMessage(dic):
         IEs.append({'id': 134, 'value': ('RRC-Establishment-Cause', 'emergency'), 'criticality': 'ignore'})
     else:    
         IEs.append({'id': 134, 'value': ('RRC-Establishment-Cause', 'mo-Signalling'), 'criticality': 'ignore'})
-	
+    
     if dic['S-TMSI'] != None:
         IEs.append({'id': 96, 'value': ('S-TMSI', {'mMEC': dic['S-TMSI'][0:1], 'm-TMSI': dic['S-TMSI'][1:5]}), 'criticality': 'reject'})
 #    IEs.append({'id': 75, 'value': ('GUMMEI', {'pLMN-Identity': dic['ENB-PLMN'], 'mME-Group-ID': dic['MME-GROUP-ID'], 'mME-Code': dic['MME-CODE']}), 'criticality': 'reject'})
