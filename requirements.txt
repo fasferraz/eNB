@@ -1,0 +1,7 @@
+pycryptodome
+requests
+smartcard
+git+https://github.com/P1sec/pycrate@master
+git+https://github.com/P1sec/pysctp@master
+git+https://github.com/P1sec/CryptoMobile@master
+git+https://github.com/mitshell/card@master
