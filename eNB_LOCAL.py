@@ -134,8 +134,10 @@ def session_dict_initialization(session_dict):
     session_dict['PDN-ADDRESS-IPV4'] = None
     session_dict['PDN-ADDRESS-IPV6'] = None
     
-    session_dict['ENB-TAC1'] = b'\x00\x01'
-    session_dict['ENB-TAC2'] = b'\x00\x03'
+    if session_dict['ENB-TAC1'] is None:
+        session_dict['ENB-TAC1'] = b'\x00\x01'
+    if session_dict['ENB-TAC2'] is None:
+        session_dict['ENB-TAC2'] = b'\x00\x03'
     session_dict['ENB-TAC'] = session_dict['ENB-TAC1']
     session_dict['ENB-TAC-NBIOT'] = b'\x00\x02'     
     session_dict['ENB-ID'] = 1
@@ -2503,6 +2505,8 @@ def main():
     parser.add_option("-P", "--op", dest="op", help="op for Milenage (if not using option -u)")    
     parser.add_option("-C", "--opc", dest="opc", help="opc for Milenage (if not using option -u)")    
     parser.add_option("-o", "--operator", dest="plmn", help="Operator MCC+MNC")
+    parser.add_option("--tac1", dest="tac1", help="1st tracking area code")
+    parser.add_option("--tac2", dest="tac2", help="2nd tracking area code")
 
     
     (options, args) = parser.parse_args()
@@ -2553,6 +2557,16 @@ def main():
             session_dict['OP'] = None
     else:
         session_dict['LOCAL_MILENAGE'] = False
+
+    if options.tac1 is not None:
+        session_dict['ENB-TAC1'] = int(options.tac1).to_bytes(2, byteorder='big')
+    else:
+        session_dict['ENB-TAC1'] = None
+
+    if options.tac2 is not None:
+        session_dict['ENB-TAC2'] = int(options.tac2).to_bytes(2, byteorder='big')
+    else:
+        session_dict['ENB-TAC2'] = None
 
     if options.plmn is not None:
         session_dict['PLMN'] = options.plmn
