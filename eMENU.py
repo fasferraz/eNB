@@ -113,13 +113,15 @@ def ProcessMenu(PDU, client, session_dict, msg):
         exit(1)    
 
     elif msg == "0\n":
-        session_dict = print_log(session_dict, "IMSI: " + session_dict['IMSI'])
+        session_dict = print_log(session_dict, "IMSI: " + str(session_dict['IMSI']) + " / IMEI: " + str(session_dict['IMEISV']))
         session_dict = print_log(session_dict, "S1 Setup type: " + session_dict['S1-TYPE'])
+        session_dict = print_log(session_dict, "PLMN: " + str(session_dict['PLMN']))
+        session_dict = print_log(session_dict, "eNB TACs: [" + str(int.from_bytes(session_dict['ENB-TAC1'], byteorder='big')) + ", " + str(int.from_bytes(session_dict['ENB-TAC2'], byteorder='big')) + "], NB-IoT TAC: " + str(int.from_bytes(session_dict['ENB-TAC2'], byteorder='big')) + ", ENB-ID: " + str(session_dict['ENB-ID']) + " Cell-ID: " + str(session_dict['ENB-ID']))
         session_dict = print_log(session_dict, "Attach Mobile Identity: " + session_dict['MOBILE-IDENTITY-TYPE'])
         if session_dict['ATTACH-PDN'] == 1:
             session_dict = print_log(session_dict, "Attach PDN: Internet")
         elif session_dict['ATTACH-PDN'] == None:
-            session_dict = print_log(session_dict, "Attach PDN: Default")   
+            session_dict = print_log(session_dict, "Attach PDN: Default")
         session_dict = print_log(session_dict, "Session Type: " + session_dict['SESSION-TYPE'])    
         if session_dict['SESSION-SESSION-TYPE'] == "NONE":
             session_dict = print_log(session_dict, "PSM/eDRX: None") 
