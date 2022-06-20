@@ -239,10 +239,12 @@ def bcd(chars):
 
 def return_plmn(mccmnc):
     mccmnc = str(mccmnc)
+    print("Returning PLMN from: " + str(mccmnc))
     if len(mccmnc)==5:
         return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + 'f' + mccmnc[3] + mccmnc[4]) 
     elif len(mccmnc)==6:
-        return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + mccmnc[5] + mccmnc[3] + mccmnc[4]) 
+        return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + mccmnc[3] + mccmnc[4] + mccmnc[5])    #Works for 315010
+
     else:
         return b''
 
