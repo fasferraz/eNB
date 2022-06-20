@@ -2505,7 +2505,7 @@ def main():
     
     (options, args) = parser.parse_args()
     #Detect if no options set:
-    if len(sys.argv) >= 1:
+    if len(sys.argv) <= 1:
         print("No arguments passed - You need to specify parameters to use.")
         parser.print_help()
         exit(1)
