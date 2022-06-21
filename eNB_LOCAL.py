@@ -113,7 +113,7 @@ def session_dict_initialization(session_dict):
     session_dict['STATE'] = 0
     session_dict['ENB-UE-S1AP-ID'] = 1000
     session_dict['ENB-NAME'] = 'Fabricio-eNB'
-    session_dict['ENB-PLMN'] = return_plmn(session_dict['PLMN'])
+    session_dict['ENB-PLMN'] = return_plmn_s1ap(session_dict['PLMN'])
     session_dict['XRES'] = b'xresxres'
 
     session_dict['KASME'] = b'kasme   kasme   kasme   kasme   '
@@ -239,7 +239,7 @@ def bcd(chars):
     bcd_bytes = bytes(bytearray.fromhex(bcd_string))
     return bcd_bytes
 
-def return_plmn(mccmnc):
+def return_plmn_s1ap(mccmnc):
     mccmnc = str(mccmnc)
     print("Returning PLMN from: " + str(mccmnc))
     if len(mccmnc)==5:
@@ -250,6 +250,16 @@ def return_plmn(mccmnc):
     else:
         return b''
 
+def return_plmn(mccmnc):
+    mccmnc = str(mccmnc)
+    print("Returning PLMN from: " + str(mccmnc))
+    if len(mccmnc)==5:
+        return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + 'f' + mccmnc[3] + mccmnc[4]) 
+    elif len(mccmnc)==6:
+        return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + mccmnc[5] + mccmnc[3] + mccmnc[4])
+
+    else:
+        return b''
 
 def return_apn(apn):
     apn_bytes = bytes()
