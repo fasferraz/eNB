@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pycryptodome = "*"
+requests = "*"
+smartcard = "*"
+pycrate = "*"
+pysctp = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
+
+[packages.card]
+git = "https://github.com/mitshell/card.git"
+ref = "v0.9.0"
+
+[packages.CryptoMobile]
+git = "https://github.com/P1sec/CryptoMobile.git"
+ref = "246d494857328996385ab4e8ab469348c97334f2"
