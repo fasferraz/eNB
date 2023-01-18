@@ -12,7 +12,7 @@ This application was tested with real MMEs (lab environment).
 To begin with you will need Python3 / Pip installed and a few other libraries / dependencies.
 
 On a Debian/Ubuntu systems you can install with:
-```apt-get install -y python3-pip libsctp-dev swig python3-pyscard git```
+```apt-get install -y python3-pip libsctp-dev swig python3-pyscard git net-tools```
 
 Now we can clone the repository with:
 
