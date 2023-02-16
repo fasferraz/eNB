@@ -2434,8 +2434,9 @@ def encapsulate_gtp_u(args):
         for sock in read_sockets:    
             if sock == tap_fd:
 		try:
-                    tap_packet = os.read(tap_fd, 1514)
-		    s_gtpu.sendto(gtp_u_header(teid, len(tap_packet)) + tap_packet, (gtp_dst_ip, 2152))
+                    if active == True:    
+		        tap_packet = os.read(tap_fd, 1514)
+		        s_gtpu.sendto(gtp_u_header(teid, len(tap_packet)) + tap_packet, (gtp_dst_ip, 2152))
 		except:
 		    pass
             elif sock == pipe_in_gtpu_encapsulate:
