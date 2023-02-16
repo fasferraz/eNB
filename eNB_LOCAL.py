@@ -2433,11 +2433,12 @@ def encapsulate_gtp_u(args):
         read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
         for sock in read_sockets:    
             if sock == tap_fd:
-                tap_packet = os.read(tap_fd, 1514)
-                if active == True:
-            
-                    s_gtpu.sendto(gtp_u_header(teid, len(tap_packet)) + tap_packet, (gtp_dst_ip, 2152))
-                
+		try:
+                    if active == True:    
+		        tap_packet = os.read(tap_fd, 1514)
+		        s_gtpu.sendto(gtp_u_header(teid, len(tap_packet)) + tap_packet, (gtp_dst_ip, 2152))
+		except:
+		    pass
             elif sock == pipe_in_gtpu_encapsulate:
                 pipe_packet = os.read(sock, 9)
                 if pipe_packet[0:1] == b'\01':
