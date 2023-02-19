@@ -183,4 +183,5 @@ except:
 For authentication the application also accepts Ki and OP/OPC for Milenage operation (usefull for testing with developments like open5gs, where the USIM parameters are defined in the HSS/UDR).
 
 
-
+## Updated version (2023/02/19):
+- Support of gtp kernel (libgtpnl and modprobe gtp) for default namespace. New option -Z
