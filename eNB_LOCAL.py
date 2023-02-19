@@ -1328,16 +1328,22 @@ def ProcessDownlinkNAS(dic):
                         dic['PDN-ADDRESS'][position] = m[1]
                         pdn_address = eNAS.decode_pdn_address(dic['PDN-ADDRESS'][position])
                         dic = eMENU.print_log(dic, pdn_address)
-                        if dic['PDN-ADDRESS-IPV4'] is not None:                                
-                            subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True) 
+                        if dic['PDN-ADDRESS-IPV4'] is not None:
+                            if dic['GTP-KERNEL'] == False:
+                                subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True) 
+                            else:
+                                subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev lo", shell=True)
                         dic['PDN-ADDRESS-IPV4'] = None
                         dic['PDN-ADDRESS-IPV6'] = None
                         
                         for x in pdn_address:
                             if x[0] == 'ipv4':
                                           
-                                dic['PDN-ADDRESS-IPV4'] = x[1]                               
-                                subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                                dic['PDN-ADDRESS-IPV4'] = x[1]
+                                if dic['GTP-KERNEL'] == False:
+                                    subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)    
+                                else:
+                                    subprocess.call("ip addr add " + x[1] + "/32 dev lo", shell=True)       
        
                             elif x[0] == 'ipv6':
                                 # operating system will process Router Advertisement
@@ -1606,7 +1612,10 @@ def ProcessDownlinkNAS(dic):
                 
                 dic = eMENU.print_log(dic, pdn_address)
                 if dic['PDN-ADDRESS-IPV4'] is not None:
-                    subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                    if dic['GTP-KERNEL'] == False:
+                        subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                    else:  
+                        subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev lo", shell=True)
                 dic['PDN-ADDRESS-IPV4'] = None
                 dic['PDN-ADDRESS-IPV6'] = None               
                 
@@ -1614,7 +1623,10 @@ def ProcessDownlinkNAS(dic):
                     if x[0] == 'ipv4':
                         
                         dic['PDN-ADDRESS-IPV4'] = x[1]
-                        subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                        if dic['GTP-KERNEL'] == False:
+                            subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                        else:
+                            subprocess.call("ip addr add " + x[1] + "/32 dev lo", shell=True)
                     elif x[0] == 'ipv6':
                         # operationg system will process Router Advertisment sent by PGW
                         #if dic['PDN-ADDRESS-IPV6'] is not None:
@@ -2423,6 +2435,7 @@ def encapsulate_gtp_u(args):
     s_gtpu = args[0]
     tap_fd = args[1]
     pipe_in_gtpu_encapsulate = args[2]
+    gtp_kernel = args[3]
 
     socket_list = []
     socket_list.append(tap_fd)
@@ -2434,20 +2447,20 @@ def encapsulate_gtp_u(args):
         for sock in read_sockets:    
             if sock == tap_fd:
                 try:
-                    if active == True:    
+                    if active == True and gtp_kernel == False:    
                         tap_packet = os.read(tap_fd, 1514)
                         s_gtpu.sendto(gtp_u_header(teid, len(tap_packet)) + tap_packet, (gtp_dst_ip, 2152))
                 except:
                     pass
             elif sock == pipe_in_gtpu_encapsulate:
                 pipe_packet = os.read(sock, 9)
+                gtp_dst_ip = socket.inet_ntoa(pipe_packet[1:5])
+                teid = pipe_packet[5:9] 
                 if pipe_packet[0:1] == b'\01':
-                    active = True                    
+                    active = True                             
                 elif pipe_packet[0:1] == b'\x02':
                     active = False
-                gtp_dst_ip = socket.inet_ntoa(pipe_packet[1:5])
-                teid = pipe_packet[5:9]                
-                    
+                                  
                     
     return 0
 
@@ -2457,6 +2470,8 @@ def decapsulate_gtp_u(args):
     s_gtpu = args[0]
     tap_fd = args[1]
     pipe_in_gtpu_decapsulate = args[2]
+    # if gtp_kernel == True, then the kernel will decapsulate the GTP-U packets, so we don't need to do it here
+    gtp_kernel = args[3]
 
     socket_list = []
     socket_list.append(s_gtpu)
@@ -2484,12 +2499,13 @@ def decapsulate_gtp_u(args):
                                                   
             elif sock == pipe_in_gtpu_decapsulate:
                 pipe_packet = os.read(sock, 9)
+                gtp_src_ip = socket.inet_ntoa(pipe_packet[1:5])
+                teid = pipe_packet[5:9] 
                 if pipe_packet[0:1] == b'\01':                
                     active = True
                 elif pipe_packet[0:1] == b'\x02':              
                     active = False
-                gtp_src_ip = socket.inet_ntoa(pipe_packet[1:5])
-                teid = pipe_packet[5:9]                
+               
                 
     return 0
 
@@ -2518,7 +2534,7 @@ def main():
     parser.add_option("-o", "--operator", dest="plmn", help="Operator MCC+MNC")
     parser.add_option("--tac1", dest="tac1", help="1st tracking area code")
     parser.add_option("--tac2", dest="tac2", help="2nd tracking area code")
-
+    parser.add_option("-Z", "--gtp-kernel", action="store_true", dest="gtp_kernel", help="Use GTP Kernel. Needs libgtpnl", default=False)
     
     (options, args) = parser.parse_args()
     #Detect if no options set:
@@ -2584,6 +2600,15 @@ def main():
     else:
         session_dict['PLMN'] = PLMN    
     
+    if options.gtp_kernel is True:
+        session_dict['GTP-KERNEL'] = True
+        subprocess.call("modprobe gtp", shell=True)
+        subprocess.call("gtp-link del gtp1", shell=True)
+        subprocess.call("killall gtp-tunnel", shell=True)
+        subprocess.call("killall gtp-link", shell=True)
+    else:
+        session_dict['GTP-KERNEL'] = False
+    
     server_address = (options.mme_ip, 36412)
 
     #socket options
@@ -2610,7 +2635,8 @@ def main():
     client.connect(server_address)
 
     s_gtpu = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s_gtpu.bind((options.eNB_ip, 2152))
+    if options.gtp_kernel == False: 
+        s_gtpu.bind((options.eNB_ip, 2152))
     #for gtp-u
     dev = open_tun(1)
     #for s1ap
@@ -2624,8 +2650,8 @@ def main():
     session_dict['PIPE-OUT-GTPU-DECAPSULATE'] = pipe_out_gtpu_decapsulate
     session_dict['GTP-U'] = b'\x02' # inactive
 
-    worker1 = Thread(target = encapsulate_gtp_u, args = ([s_gtpu, dev, pipe_in_gtpu_encapsulate],))
-    worker2 = Thread(target = decapsulate_gtp_u, args = ([s_gtpu, dev, pipe_in_gtpu_decapsulate],))
+    worker1 = Thread(target = encapsulate_gtp_u, args = ([s_gtpu, dev, pipe_in_gtpu_encapsulate, options.gtp_kernel],))
+    worker2 = Thread(target = decapsulate_gtp_u, args = ([s_gtpu, dev, pipe_in_gtpu_decapsulate, options.gtp_kernel],))
     worker1.setDaemon(True)
     worker2.setDaemon(True)
     worker1.start()

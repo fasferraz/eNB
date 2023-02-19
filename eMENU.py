@@ -109,6 +109,13 @@ def print_menu(log):
 
 def ProcessMenu(PDU, client, session_dict, msg):
     if msg == "Q\n" or msg == "q\n": 
+        if session_dict['GTP-KERNEL'] == True:
+            subprocess.call("gtp-link del gtp1", shell=True)
+            subprocess.call("killall gtp-tunnel", shell=True)
+            subprocess.call("killall gtp-link", shell=True)
+            subprocess.call("modprobe -r gtp", shell=True) 
+            if session_dict['PDN-ADDRESS-IPV4'] is not None:
+                subprocess.call("ip addr del " + session_dict['PDN-ADDRESS-IPV4'] + "/32 dev lo", shell=True)
         os.system('clear')
         exit(1)    
 
@@ -479,14 +486,21 @@ def ProcessMenu(PDU, client, session_dict, msg):
                 if len(session_dict['SGW-GTP-ADDRESS']) > 0:
                     os.write(session_dict['PIPE-OUT-GTPU-ENCAPSULATE'],session_dict['GTP-U'] + session_dict['SGW-GTP-ADDRESS'][-1] + session_dict['SGW-TEID'][-1])
                     os.write(session_dict['PIPE-OUT-GTPU-DECAPSULATE'],session_dict['GTP-U'] + session_dict['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([session_dict['RAB-ID'][-1]]))
-                if session_dict['PDN-ADDRESS-IPV4'] is not None:                     
-                    subprocess.call("route add -net 0.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)    
-                    subprocess.call("route add -net 128.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)
+                if session_dict['PDN-ADDRESS-IPV4'] is not None:
+                    if session_dict['GTP-KERNEL'] == False:                  
+                        subprocess.call("route add -net 0.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)    
+                        subprocess.call("route add -net 128.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)
                 if session_dict['PDN-ADDRESS-IPV6'] is not None:
-                    subprocess.call("route -A inet6 add ::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN']) , shell=True) 
-                    subprocess.call("route -A inet6 add 8000::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN'])  , shell=True)
+                    if session_dict['GTP-KERNEL'] == False: 
+                        subprocess.call("route -A inet6 add ::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN']) , shell=True) 
+                        subprocess.call("route -A inet6 add 8000::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN'])  , shell=True)
                 if session_dict['GATEWAY'] is not None and len(session_dict['SGW-GTP-ADDRESS']) > 0:
                     subprocess.call("route add " + socket.inet_ntoa(session_dict['SGW-GTP-ADDRESS'][-1])  + "/32 gw " + session_dict['GATEWAY'], shell=True)
+                if session_dict['GTP-KERNEL'] == True:                 
+                    subprocess.call("gtp-link add gtp1 --sgsn > /tmp/log-gtp-link1 2>&1 &", shell=True)
+                    subprocess.call("gtp-tunnel add gtp1 v1 " + str(session_dict['RAB-ID'][-1]) + " " + str(struct.unpack("!I", session_dict['SGW-TEID'][-1])[0]) + " " + session_dict['PDN-ADDRESS-IPV4'] + " " + socket.inet_ntoa(session_dict['SGW-GTP-ADDRESS'][-1]), shell=True)
+                    subprocess.call("route add -net 0.0.0.0/1 dev gtp1", shell=True)    
+                    subprocess.call("route add -net 128.0.0.0/1 dev gtp1", shell=True)  
                 session_dict = print_log(session_dict, "GTP-U/IP over ControlPlane: Activation")
             else:
                 session_dict = print_log(session_dict, "GTP-U/IP over ControlPlane: Already activated.")
@@ -499,14 +513,21 @@ def ProcessMenu(PDU, client, session_dict, msg):
             if len(session_dict['SGW-GTP-ADDRESS']) > 0:
                 os.write(session_dict['PIPE-OUT-GTPU-ENCAPSULATE'],session_dict['GTP-U'] + session_dict['SGW-GTP-ADDRESS'][-1] + session_dict['SGW-TEID'][-1])
                 os.write(session_dict['PIPE-OUT-GTPU-DECAPSULATE'],session_dict['GTP-U'] + session_dict['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([session_dict['RAB-ID'][-1]]))
-            if session_dict['PDN-ADDRESS-IPV4'] is not None:     
-                subprocess.call("route del -net 0.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)    
-                subprocess.call("route del -net 128.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)
+            if session_dict['PDN-ADDRESS-IPV4'] is not None: 
+                if session_dict['GTP-KERNEL'] == False:     
+                    subprocess.call("route del -net 0.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)    
+                    subprocess.call("route del -net 128.0.0.0/1 gw " + session_dict['PDN-ADDRESS-IPV4'], shell=True)
             if session_dict['PDN-ADDRESS-IPV6'] is not None:
-                subprocess.call("route -A inet6 del ::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN']) , shell=True) 
-                subprocess.call("route -A inet6 del 8000::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN'])  , shell=True)    
+                if session_dict['GTP-KERNEL'] == False: 
+                    subprocess.call("route -A inet6 del ::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN']) , shell=True) 
+                    subprocess.call("route -A inet6 del 8000::/1 dev tun" + str(session_dict['SESSION-TYPE-TUN'])  , shell=True)    
             if session_dict['GATEWAY'] is not None and len(session_dict['SGW-GTP-ADDRESS']) > 0:
                 subprocess.call("route del " + socket.inet_ntoa(session_dict['SGW-GTP-ADDRESS'][-1])  + "/32 gw " + session_dict['GATEWAY'], shell=True)
+            if session_dict['GTP-KERNEL'] == True:
+                subprocess.call("gtp-tunnel del gtp1 v1 " + str(session_dict['RAB-ID'][-1]), shell=True)
+                subprocess.call("gtp-link del gtp1", shell=True)
+                subprocess.call("killall gtp-tunnel", shell=True)
+                subprocess.call("killall gtp-link", shell=True)
             session_dict = print_log(session_dict, "GTP-U/IP over ControlPlane: Desactivation")
         else:
             session_dict = print_log(session_dict, "GTP-U/IP over ControlPlane: Already inactive.")
