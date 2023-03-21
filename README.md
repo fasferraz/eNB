@@ -185,3 +185,6 @@ For authentication the application also accepts Ki and OP/OPC for Milenage opera
 
 ## Updated version (2023/02/19):
 - Support of gtp kernel (libgtpnl and modprobe gtp) for default namespace. New option -Z
+
+## New branch added by Avmalavi that supports Multi-User!!!!
+Check it here: https://github.com/fasferraz/eNB/tree/multi-user
