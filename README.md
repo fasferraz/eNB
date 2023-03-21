@@ -32,7 +32,7 @@ When you call the script these are the options available:
 
 ```
 ./simulator.py -P start-simulator --enbip 192.168.197.180 --mmeip 192.168.197.201
-./simulator.py -P s1-setup --mcc 111 --mnc 111 --enbid 100000 --tac1 63 --tac2 64
+./simulator.py -P s1-setup --mcc 111 --mnc 111 --enbid 100000 --tac1 73 --tac2 74
 ./simulator.py -P attach --mcc 111 --mnc 111 --imsi 111111000000001 --key e8767ccf27d3fae385b16bf073c912a2 --opc 982559004308ee438a99b5baf6a59c45
 ./simulator.py -P idle --imsi 111111000000001
 ./simulator.py -P tau --imsi 111111000000001
