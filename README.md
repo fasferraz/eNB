@@ -51,7 +51,7 @@ ip netns exec 111111000000001 ping 8.8.8.8
 For Multiple User attach:
 ```
 ./simulator.py -P start-simulator --enbip 192.168.197.180 --mmeip 192.168.197.201
-./simulator.py -P s1-setup --mcc 111 --mnc 111 --enbid 100000 --tac1 63 --tac2 64
+./simulator.py -P s1-setup --mcc 111 --mnc 111 --enbid 100000 --tac1 73 --tac2 74
 ./simulator.py -P attach --mcc 111 --mnc 111 --imsi 111111000000001 --key e8767ccf27d3fae385b16bf073c912a2 --opc 982559004308ee438a99b5baf6a59c45
 ./simulator.py -P attach --mcc 111 --mnc 111 --imsi 111111000000002 --key e8767ccf27d3fae385b16bf073c912a3 --opc 982559004308ee438a99b5baf6a59c46
 ./simulator.py -P attach --mcc 111 --mnc 111 --imsi 111111000000003 --key e8767ccf27d3fae385b16bf073c912a4 --opc 982559004308ee438a99b5baf6a59c47
