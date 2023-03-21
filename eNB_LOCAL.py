@@ -1,3 +1,7 @@
+from scapy.all import *
+import re
+import netifaces
+from ipcqueue import posixmq
 import random
 import socket
 import struct
@@ -17,8 +21,16 @@ import os
 import subprocess
 from threading import Thread
 import datetime
-
+import logging
+from kamene.all import IP
+from kamene.all import UDP 
+from kamene.all import Raw
+from kamene.all import send 
+import multiprocessing
 import eNAS, eMENU
+os.system("mkdir -p /var/log/sim/")
+logging.basicConfig(filename="/var/log/sim/tool.log",filemode='w',format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S',level=logging.DEBUG)
+logger = logging.getLogger('edge_log')
 
 
 #tries to import all options for retrieving IMSI, and RES, CK and IK from USIM.
@@ -43,10 +55,13 @@ except:
     pass
     
 
-
-
-
-PLMN = '12345'
+def flag_set(n):
+    if (n % 2) == 0:
+      return False
+    else:
+      return False
+enb_s1ap_id= 1000
+PLMN = '111111'
 IMSI = PLMN + '1234567890'
 IMEISV = '1234567890123456'
 IMEI = '123456789012347'
@@ -105,13 +120,61 @@ NON_IP_PACKET_4 = '0102030405060708090a0102030405060708090a0102030405060708090a0
 #                                                       GENERAL PROCEDURES:                                                          #
 ######################################################################################################################################
 
+def add_ns(ns_name,veth,nseth,ue_ip):
+    sys_ns=os.popen("ip netns show").read()
+    if ns_name in sys_ns:
+        os.popen(f"ip netns del {ns_name}")
+    os.popen(f"ip netns add {ns_name}")
+    veth_ns=os.popen(f"ip link show type veth").read()
+    if veth in veth_ns:
+        os.popen(f"ip link del {veth}")
+    os.popen(f"ip link add {veth} type veth peer name {nseth}")
+    veth_exists=os.popen("ip link show type veth").read()
+    if veth in veth_exists and nseth in veth_exists:
+        logging.info("veth added successfully")
+    os.system(f"ip link set {nseth} netns {ns_name}")
+    os.system(f"ip netns exec {ns_name} ifconfig {nseth} {ue_ip}/24 up")
+    os.system(f"ip link set dev {veth} master {bridge_name}")
+    os.system(f"ip link set dev {veth} up")
+    os.system(f"ip netns exec {ns_name} ip  link set  lo up")
+    try:
+        br_ip_list=[n['addr'] for n in netifaces.ifaddresses(bridge_name)[2] ]
+    except:
+        br_ip_list=[]
+    subnet=re.findall(r"[\d]*.[\d]*.[\d]*.",ue_ip)[0]
+    if f"{subnet}1" not in br_ip_list:
+        os.popen(f"ip addr add {subnet}1/24 dev {bridge_name}")
+    os.popen(f"ip netns exec {ns_name} ip route add default via {subnet}1 dev {nseth}")
 
-    
+def delete_ns(ns_name,veth):
+    sys_ns=os.popen("ip netns show").read()
+    if ns_name in sys_ns:
+        os.popen(f"ip netns del {ns_name}")
+
+def bridge_up():
+    os.system(f"ip link del {bridge_name} ")
+    os.system(f"ip link add {bridge_name} type bridge")
+    os.system(f"ip link set dev {bridge_name} up")
+
+def ue_eth_pair(ue_pair_val=None):
+    global ue_eth
+    if ue_pair_val is None:
+        return ue_eth.pop(0)
+    else:
+        ue_eth.append(ue_pair_val)
+
+def upteid_get():
+    global upteid
+    if upteid == 100000:
+        upteid = 1
+    else:
+        upteid+=1
+    return upteid
 
 def session_dict_initialization(session_dict):
 
     session_dict['STATE'] = 0
-    session_dict['ENB-UE-S1AP-ID'] = 1000
+    session_dict['ENB-UE-S1AP-ID'] = random.randint(1000, 2000)
     session_dict['ENB-NAME'] = 'Fabricio-eNB'
     session_dict['ENB-PLMN'] = return_plmn_s1ap(session_dict['PLMN'])
     session_dict['XRES'] = b'xresxres'
@@ -140,8 +203,8 @@ def session_dict_initialization(session_dict):
         session_dict['ENB-TAC2'] = b'\x00\x03'
     session_dict['ENB-TAC'] = session_dict['ENB-TAC1']
     session_dict['ENB-TAC-NBIOT'] = b'\x00\x02'     
-    session_dict['ENB-ID'] = 1
-    session_dict['ENB-CELLID'] = 1000000
+    session_dict['ENB-ID'] = random.randint(1, 9)
+    session_dict['ENB-CELLID'] = random.randint(1000000,1900000)
     
     session_dict['NAS-KEY-EEA1'] = return_key(session_dict['KASME'],1,'NAS-ENC')
     session_dict['NAS-KEY-EEA2'] = return_key(session_dict['KASME'],2,'NAS-ENC')
@@ -195,7 +258,6 @@ def session_dict_initialization(session_dict):
     session_dict['CPSR-TYPE'] = 0
     
     session_dict['S1-TYPE'] = "4G"
-    session_dict['MOBILE-IDENTITY'] = session_dict['ENCODED-IMSI'] 
     session_dict['MOBILE-IDENTITY-TYPE'] = "IMSI" 
     session_dict['SESSION-SESSION-TYPE'] = "NONE"
     session_dict['SESSION-TYPE'] = "4G"
@@ -241,7 +303,7 @@ def bcd(chars):
 
 def return_plmn_s1ap(mccmnc):
     mccmnc = str(mccmnc)
-    print("Returning PLMN from: " + str(mccmnc))
+    #print("Returning PLMN from: " + str(mccmnc))
     if len(mccmnc)==5:
         return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + 'f' + mccmnc[3] + mccmnc[4]) 
     elif len(mccmnc)==6:
@@ -252,7 +314,7 @@ def return_plmn_s1ap(mccmnc):
 
 def return_plmn(mccmnc):
     mccmnc = str(mccmnc)
-    print("Returning PLMN from: " + str(mccmnc))
+    #print("Returning PLMN from: " + str(mccmnc))
     if len(mccmnc)==5:
         return bcd(mccmnc[0] + mccmnc[1] + mccmnc[2] + 'f' + mccmnc[3] + mccmnc[4]) 
     elif len(mccmnc)==6:
@@ -266,7 +328,6 @@ def return_apn(apn):
     apn_l = apn.split(".") 
     for word in apn_l:
         apn_bytes += struct.pack("!B", len(word)) + word.encode()     
-     
     return apn_bytes    
     
 def set_stream(client, stream):    
@@ -384,7 +445,6 @@ def get_default_gateway_linux():
 
 #abstraction functions
 def milenage_res_ck_ik(ki, op, opc, rand):
-    print(ki, op, opc ,rand)
     rand = unhexlify(rand)
     if op == None: 
         op = 16*b'\x00' #dummy since we will set opc directly
@@ -742,7 +802,7 @@ def nas_activate_default_eps_bearer_context_accept(eps_bearer_identity, pco):
     esm_list.append((0,'V',bytes([pti]))) # procedure trnasaction identity
     esm_list.append((0,'V',bytes([194]))) # message type: activate_default_eps_bearer_context_accept
     if pco != None:
-        esm_list.append((0x27,'TLV',pco)) 
+        esm_list.append((0x27,'TLV',pco))
     return eNAS.nas_encode(esm_list)  
 
 
@@ -808,7 +868,6 @@ def nas_esm_data_transport(eps_bearer_identity, pti, user_data_container):
 #-------------------------------------------------------------#
 ### EMM ### :
 def nas_attach_request(type, esm_information_transfer_flag, eps_identity, pdp_type, attach_type, tmsi, lai, sms_update, pcscf_restoration, ksi=0):
-    
     emm_list = []
     emm_list.append((7,0))  # protocol discriminator / 
     emm_list.append((0,'V',bytes([65]))) # message type: attach request
@@ -876,7 +935,6 @@ def nas_attach_request(type, esm_information_transfer_flag, eps_identity, pdp_ty
         if attach_type == 2 and tmsi != None:
             emm_list.append((0x10, 'TLV', tmsi[-3:-2] + bytes([(tmsi[-2]//64)*64])))             
         emm_list.append((0x6F, 'TLV', b'\xf0\x00\xf0\x00'))
-    
     
     
     return eNAS.nas_encode(emm_list)
@@ -975,6 +1033,14 @@ def nas_authentication_response(xres):
     emm_list.append((0,'LV',xres))
     return eNAS.nas_encode(emm_list)
 
+def nas_nondelivery_Indication(rand,autn):
+    emm_list = []
+    emm_list.append((7,0))  # protocol discriminator / 
+    emm_list.append((0,'V',bytes([82]))) # message type: authentication request
+    emm_list.append((0,'V',rand))
+    emm_list.append((0,'LV',autn))
+    return eNAS.nas_encode(emm_list)
+
 
 def nas_identity_response(imsi_or_imeisv):
     emm_list = []
@@ -1063,7 +1129,7 @@ def nas_uplink_nas_transport(sms):
 # NAS Process #
 ###############
 def ProcessUplinkNAS(message_type, dic):
-
+    encrypted_flag = False
     if message_type == 'service request':
         dic['UP-COUNT'] += 1 
         dic['DIR'] = 0
@@ -1115,14 +1181,14 @@ def ProcessUplinkNAS(message_type, dic):
             dic['NAS'] = nas_security_protected_nas_message(2,mac_bytes,bytes([dic['UP-COUNT']%256]),dic['NAS-ENC']) 
         else:
             dic['NAS'] = nas_security_protected_nas_message(1,mac_bytes,bytes([dic['UP-COUNT']%256]),dic['NAS-ENC']) #com s1 em baixo vai no initialuemessage so com integrity
-        dic = eMENU.print_log(dic, "NAS: sending DetachRequest")    
+        dic = eMENU.print_log(dic, "NAS: sending DetachRequest")   
     
     elif message_type == 'pdn connectivity request':
         pco = nas_pco(dic['PDP-TYPE'],dic['PCSCF-RESTORATION'])
         if dic['ATTACH-TYPE'] == 6: #If Attach Type = EPS Emergency PDN Connectity is with Emergency APN 
-            dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],None, pco, None,4)        
+            dic['NAS-ENC'] = nas_pdn_connectivity(0, 2, dic['PDP-TYPE'],None, pco, None,4)        
         else:
-            dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],eNAS.encode_apn(APN), pco, None)
+            dic['NAS-ENC'] = nas_pdn_connectivity(0, 2, dic['PDP-TYPE'],eNAS.encode_apn(APN), pco, None)
         dic['UP-COUNT'] += 1 
         dic['DIR'] = 0
         nas_encrypted = nas_encrypt(dic)
@@ -1196,7 +1262,7 @@ def ProcessDownlinkNAS(dic):
 
     #if encrpyted, decoded, and the decoded becomes the new nas_list
     if nas_list[-1][0] == 'nas message encrypted':
-        encrypted_flag = True
+        encrypted_flag = False
         
         dic['DOWN-COUNT'] += 1
         dic['NAS-ENC'] = nas_list[-1][1] 
@@ -1216,7 +1282,6 @@ def ProcessDownlinkNAS(dic):
     
     if message_type == 82: # authentication request
         dic = eMENU.print_log(dic, "NAS: AuthenticatonRequest received")
-
         if dic['LOCAL_KEYS'] == True:
             dic['NAS'] = nas_authentication_response(dic['XRES'])
             if encrypted_flag == True:
@@ -1233,24 +1298,26 @@ def ProcessDownlinkNAS(dic):
         else:
             for i in nas_list:
                 if i[0] == "rand":
+                    rand_err=i[1]
                     rand = hexlify(i[1]).decode('utf-8')
-                   
                 elif i[0] == "autn":
+                    autn_error= i[1]
                     autn = hexlify(i[1]).decode('utf-8')
             
             if dic['LOCAL_MILENAGE'] == True:
                 res, ck, ik = milenage_res_ck_ik(dic['KI'], dic['OP'], dic['OPC'], rand) #no sqn validation
             else:
                 res, ck, ik = return_res_ck_ik(dic['SERIAL-INTERFACE'],rand, autn)
-                
             if res is not None and ck is not None and ik is not None:
                 dic['KASME'] = return_kasme(dic['PLMN'], autn, ck, ik)
                 dic['XRES'] = unhexlify(res)
             elif res is not None and ck is not None and ik is None: #ck as kasme
                 dic['KASME'] = unhexlify(ck)
-                dic['XRES'] = unhexlify(res)            
-
-            dic['NAS'] = nas_authentication_response(dic['XRES'])
+                dic['XRES'] = unhexlify(res)        
+            if dic['AUTH-ERROR']:
+                dic['NAS']=nas_nondelivery_Indication(unhexlify("00"+rand),unhexlify(autn))
+            else:
+                dic['NAS'] = nas_authentication_response(dic['XRES'])
 
             if encrypted_flag == True:
                 dic['NAS-ENC'] = dic['NAS'] 
@@ -1272,6 +1339,7 @@ def ProcessDownlinkNAS(dic):
 
     elif message_type == 84: # authentication reject
         dic = eMENU.print_log(dic, "NAS: AuthenticatonReject received")
+        os.system(f"echo FAILED>/var/log/sim/ue_{dic['IMSI']}_status")
         dic['NAS'] = None
         dic['STATE'] = 1
 
@@ -1328,29 +1396,32 @@ def ProcessDownlinkNAS(dic):
                         dic['PDN-ADDRESS'][position] = m[1]
                         pdn_address = eNAS.decode_pdn_address(dic['PDN-ADDRESS'][position])
                         dic = eMENU.print_log(dic, pdn_address)
-                        if dic['PDN-ADDRESS-IPV4'] is not None:
-                            if dic['GTP-KERNEL'] == False:
-                                subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True) 
-                            else:
-                                subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev lo", shell=True)
+                        #if dic['PDN-ADDRESS-IPV4'] is not None:                        
+                        #    subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['IMSI']), shell=True) 
                         dic['PDN-ADDRESS-IPV4'] = None
                         dic['PDN-ADDRESS-IPV6'] = None
                         
                         for x in pdn_address:
                             if x[0] == 'ipv4':
                                           
-                                dic['PDN-ADDRESS-IPV4'] = x[1]
-                                if dic['GTP-KERNEL'] == False:
-                                    subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)    
-                                else:
-                                    subprocess.call("ip addr add " + x[1] + "/32 dev lo", shell=True)       
+                                dic['PDN-ADDRESS-IPV4'] = x[1] 
+                                dic['GTP-KEY']=socket.inet_aton(x[1])
+                                dic['UE-NAMESPACE']=ue_eth_pair()
+                                add_ns(dic['IMSI'],dic['UE-NAMESPACE'][0],dic['UE-NAMESPACE'][1],dic['PDN-ADDRESS-IPV4'])
+                                #try:
+                                #    tap = TunTap(nic_type="Tap",nic_name=f"tun{dic['IMSI']}")
+                                #    dic['tap']=tap
+                                #    tap.config(ip=x[1],mask="255.255.255.255",gateway="0.0.0.0")
+                                #except:
+                                #    pass
+                                #subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
        
                             elif x[0] == 'ipv6':
-                                # operating system will process Router Advertisement
-                                #if dic['PDN-ADDRESS-IPV6'] is not None:                                  
-                                #    subprocess.call("ip -6 addr del " + dic['PDN-ADDRESS-IPV6'] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                                 #operating system will process Router Advertisement
+                                if dic['PDN-ADDRESS-IPV6'] is not None:                                  
+                                    subprocess.call("ip -6 addr del " + dic['PDN-ADDRESS-IPV6'] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
                                 dic['PDN-ADDRESS-IPV6'] = x[1]                   
-                                #subprocess.call("ip -6 addr add " + x[1] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                                subprocess.call("ip -6 addr add " + x[1] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
                             
                     elif m[0] == 'access point name':
                         
@@ -1374,24 +1445,28 @@ def ProcessDownlinkNAS(dic):
         dic['NAS-ENC'] = nas_attach_complete(dic['EPS-BEARER-IDENTITY'][position])
         dic['UP-COUNT'] += 1 
         dic['DIR'] = 0
+        global gtp_dict
+        gtp_dict[dic['GTP-KEY']] =((dic['SGW-TEID'])[-1],(dic['SGW-GTP-ADDRESS'])[-1])
         nas_encrypted = nas_encrypt(dic)
         dic['NAS-ENC'] = nas_encrypted 
         mac_bytes = nas_hash(dic)
         dic['NAS'] = nas_security_protected_nas_message(2,mac_bytes,bytes([dic['UP-COUNT']%256]),dic['NAS-ENC']) #mudei de 4 para 2
         dic = eMENU.print_log(dic, "NAS: sending AttachComplete")
-        
+        os.system(f"echo CONNECTED>/var/log/sim/ue_{dic['IMSI']}_status")
         dic['STATE'] = 2
+
 
     elif message_type == 68: #attach reject
         dic = eMENU.print_log(dic, "NAS: AttachReject received")
+        os.system(f"echo FAILED>/var/log/sim/ue_{dic['IMSI']}_status")
         dic['NAS'] = None
         dic['STATE'] = 1
         
     elif message_type == 69: #detach request
     
         if len(dic['SGW-GTP-ADDRESS']) > 0:
-            os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-            os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
+            #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+            #os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
             dic = eMENU.print_log(dic, "GTP-U: Deactivation due to DetachRequest received")
         
         dic['RAB-ID'] = []
@@ -1417,10 +1492,9 @@ def ProcessDownlinkNAS(dic):
         dic = eMENU.print_log(dic, "NAS: sending DetachAccept")
 
     elif message_type == 70: #detach accept
-    
         if len(dic['SGW-GTP-ADDRESS']) > 0:
-            os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-            os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
+            #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+            #os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
             dic = eMENU.print_log(dic, "GTP-U: Deactivation due to DetachAccept received")
         
         dic = eMENU.print_log(dic, "NAS: DetachAccept received")
@@ -1434,6 +1508,13 @@ def ProcessDownlinkNAS(dic):
         dic['EPS-BEARER-APN'] = []
         dic['PDN-ADDRESS'] = []    
         dic['STATE'] = 1
+        global user_dict
+        if dic['IMSI'] in user_dict:
+            del gtp_dict[dic['GTP-KEY']]
+            del user_dict[dic['IMSI']]
+            ue_eth_pair(dic['UE-NAMESPACE'])
+            delete_ns(dic['IMSI'],dic['UE-NAMESPACE'][1])
+            
 
     elif message_type == 73: #tracking area update accept
         dic = eMENU.print_log(dic, "NAS: TrackingAreaUpdateAccept received")
@@ -1611,11 +1692,8 @@ def ProcessDownlinkNAS(dic):
                 pdn_address = eNAS.decode_pdn_address(dic['PDN-ADDRESS'][position])
                 
                 dic = eMENU.print_log(dic, pdn_address)
-                if dic['PDN-ADDRESS-IPV4'] is not None:
-                    if dic['GTP-KERNEL'] == False:
-                        subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
-                    else:  
-                        subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev lo", shell=True)
+                #if dic['PDN-ADDRESS-IPV4'] is not None:
+                #    subprocess.call("ip addr del " + dic['PDN-ADDRESS-IPV4'] + "/32 dev tun" + str(dic['IMSI']), shell=True)
                 dic['PDN-ADDRESS-IPV4'] = None
                 dic['PDN-ADDRESS-IPV6'] = None               
                 
@@ -1623,16 +1701,13 @@ def ProcessDownlinkNAS(dic):
                     if x[0] == 'ipv4':
                         
                         dic['PDN-ADDRESS-IPV4'] = x[1]
-                        if dic['GTP-KERNEL'] == False:
-                            subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
-                        else:
-                            subprocess.call("ip addr add " + x[1] + "/32 dev lo", shell=True)
+                        #subprocess.call("ip addr add " + x[1] + "/32 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
                     elif x[0] == 'ipv6':
                         # operationg system will process Router Advertisment sent by PGW
-                        #if dic['PDN-ADDRESS-IPV6'] is not None:
-                        #    subprocess.call("ip -6 addr del " + dic['PDN-ADDRESS-IPV6'] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
+                        if dic['PDN-ADDRESS-IPV6'] is not None:
+                            subprocess.call("ip -6 addr del " + dic['PDN-ADDRESS-IPV6'] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)
                         dic['PDN-ADDRESS-IPV6'] = x[1]
-                        #subprocess.call("ip -6 addr add " + x[1] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)                            
+                        subprocess.call("ip -6 addr add " + x[1] + "/64 dev tun" + str(dic['SESSION-TYPE-TUN']), shell=True)                            
                 
 
             elif i[0] == 'access point name':
@@ -1738,7 +1813,8 @@ def ProcessDownlinkNAS(dic):
         dic = eMENU.print_log(dic, "NAS: ESMDataTransport received")    
         for i in nas_list: 
             if i[0] == 'user data container':
-                os.write(dic['NBIOT-TUN'],i[1])
+                #os.write(dic['NBIOT-TUN'],i[1])
+                pass
         dic['NAS'] = None
         
             
@@ -1756,7 +1832,6 @@ def ProcessDownlinkNAS(dic):
 #  S1AP Msg   #
 ###############
 def InitialUEMessage(dic):
-    
     IEs = []
     IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'reject'})
     IEs.append({'id': 26, 'value': ('NAS-PDU', dic['NAS']), 'criticality': 'reject'})
@@ -1795,8 +1870,7 @@ def UplinkNASTransport(dic):
     val = ('initiatingMessage', {'procedureCode': 13, 'value': ('UplinkNASTransport', {'protocolIEs': IEs}), 'criticality': 'ignore'})
         
     dic = eMENU.print_log(dic, "S1AP: sending UplinkNASTransport")
-    return val    
-
+    return val     
 
 def ProcessLocationReportingControl(IEs, dic):
 
@@ -1823,7 +1897,6 @@ def ProcessLocationReportingControl(IEs, dic):
 
 
 def ProcessDownlinkNASTransport(IEs, dic):
-    
     for i in IEs:
         if i['id'] == 0:
             mme_ue_s1ap_id = i['value'][1]
@@ -1832,7 +1905,6 @@ def ProcessDownlinkNASTransport(IEs, dic):
             nas_pdu = i['value'][1]
             dic['NAS'] = nas_pdu
             
-
     dic = ProcessDownlinkNAS(dic)
     
     val = []
@@ -1840,15 +1912,22 @@ def ProcessDownlinkNASTransport(IEs, dic):
     if dic['NAS'] != None or dic['NAS-SMS-MT'] != None:
         if dic['NAS'] != None:
             IEs = []
-            IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'reject'})
-            IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'reject'})
-            IEs.append({'id': 26, 'value': ('NAS-PDU', dic['NAS']), 'criticality': 'reject'})
-            IEs.append({'id': 100, 'value': ('EUTRAN-CGI', {'cell-ID': (dic['ENB-CELLID'], 28), 'pLMNidentity': dic['ENB-PLMN']}), 'criticality': 'ignore'})   
-            if dic['SESSION-TYPE'] == "4G" or dic['SESSION-TYPE'] == "5G":
-                IEs.append({'id': 67, 'value': ('TAI', {'pLMNidentity': dic['ENB-PLMN'], 'tAC': dic['ENB-TAC']}), 'criticality': 'ignore'})
-            elif dic['SESSION-TYPE'] == "NBIOT":            
-                IEs.append({'id': 67, 'value': ('TAI', {'pLMNidentity': dic['ENB-PLMN'], 'tAC': dic['ENB-TAC-NBIOT']}), 'criticality': 'ignore'})
-            val.append(('initiatingMessage', {'procedureCode': 13, 'value': ('UplinkNASTransport', {'protocolIEs': IEs}), 'criticality': 'ignore'}))
+            if dic['AUTH-ERROR']:
+                IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'reject'})
+                IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'reject'})
+                IEs.append({'id': 2, 'value': ('Cause', ('radioNetwork', 'radio-connection-with-ue-lost')), 'criticality': 'ignore'})
+                IEs.append({'id': 26, 'value': ('NAS-PDU',dic['NAS']), 'criticality': 'reject'})
+                val.append(('initiatingMessage', {'procedureCode': 16, 'value': ('NASNonDeliveryIndication', {'protocolIEs': IEs}), 'criticality': 'ignore'}))
+            else:   
+                IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'reject'})
+                IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'reject'})
+                IEs.append({'id': 26, 'value': ('NAS-PDU', dic['NAS']), 'criticality': 'reject'})
+                IEs.append({'id': 100, 'value': ('EUTRAN-CGI', {'cell-ID': (dic['ENB-CELLID'], 28), 'pLMNidentity': dic['ENB-PLMN']}), 'criticality': 'ignore'})   
+                if dic['SESSION-TYPE'] == "4G" or dic['SESSION-TYPE'] == "5G":
+                    IEs.append({'id': 67, 'value': ('TAI', {'pLMNidentity': dic['ENB-PLMN'], 'tAC': dic['ENB-TAC']}), 'criticality': 'ignore'})
+                elif dic['SESSION-TYPE'] == "NBIOT":            
+                    IEs.append({'id': 67, 'value': ('TAI', {'pLMNidentity': dic['ENB-PLMN'], 'tAC': dic['ENB-TAC-NBIOT']}), 'criticality': 'ignore'})
+                val.append(('initiatingMessage', {'procedureCode': 13, 'value': ('UplinkNASTransport', {'protocolIEs': IEs}), 'criticality': 'ignore'}))
             dic = eMENU.print_log(dic, "S1AP: sending UplinkNASTransport")
         if dic['NAS-SMS-MT'] != None:
             IEs = []
@@ -1893,7 +1972,6 @@ def ProcessInitialContextSetupRequest(IEs, dic):
                     dic['SGW-TEID'].append(None)
                     
                 position = dic['RAB-ID'].index(e_RAB_id)                
-                                       
                 dic['SGW-GTP-ADDRESS'][position] = (first_eRAB['transportLayerAddress'][0]).to_bytes(4, byteorder='big')
                 dic['SGW-TEID'][position] = first_eRAB['gTP-TEID']
                 if 'nAS-PDU' in first_eRAB:
@@ -1905,8 +1983,10 @@ def ProcessInitialContextSetupRequest(IEs, dic):
 
             #uses the last pdn as the gtp-u
             if len(dic['SGW-GTP-ADDRESS']) > 0:
-                os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-                os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))        
+                #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+                #os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]])) 
+                global gtp_dict 
+                gtp_dict[dic['GTP-KEY']] =((dic['SGW-TEID'])[-1],(dic['SGW-GTP-ADDRESS'])[-1])      
                 
 
         
@@ -1918,7 +1998,7 @@ def ProcessInitialContextSetupRequest(IEs, dic):
     IEs_RABs_List = []
     for m in range(Num_eRAB):
         e_RAB_id = eRAB_list[m]['value'][1]['e-RAB-ID']
-        IEs_RAB = {'id': 50, 'value': ('E-RABSetupItemCtxtSURes', {'e-RAB-ID': e_RAB_id, 'transportLayerAddress': (dic['ENB-GTP-ADDRESS-INT'], 32), 'gTP-TEID': b'\x00\x00\x00' + bytes([e_RAB_id]) }), 'criticality': 'ignore'}
+        IEs_RAB = {'id': 50, 'value': ('E-RABSetupItemCtxtSURes', {'e-RAB-ID': e_RAB_id, 'transportLayerAddress': (dic['ENB-GTP-ADDRESS-INT'], 32), 'gTP-TEID': (struct.pack('>I', upteid_get()))[1:] + bytes([e_RAB_id]) }), 'criticality': 'ignore'}
         IEs_RABs_List.append(IEs_RAB)
         
     IEs.append({'id': 51, 'value': ('E-RABSetupListCtxtSURes', IEs_RABs_List), 'criticality': 'ignore'})   
@@ -1992,8 +2072,9 @@ def ProcessERABSetupRequest(IEs, dic):
                     #dic['NAS'] = None
             
             if len(dic['SGW-GTP-ADDRESS']) > 0:
-                os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-                os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))            
+                #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+                #os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))  
+                pass          
                 
     val = []
     
@@ -2063,8 +2144,9 @@ def ProcessERABReleaseCommand(IEs, dic):
                     dic['SGW-TEID'].pop(position)
             
             if len(dic['SGW-GTP-ADDRESS']) > 0:
-                os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-                os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
+                #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+                #os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],dic['GTP-U'] + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
+                pass
      
         elif i['id'] == 26: #nas        
             nas_pdu = i['value'][1]
@@ -2105,12 +2187,26 @@ def ProcessERABReleaseCommand(IEs, dic):
 
 
 
-def ProcessUEContextReleaseCommand(IEs, dic):
-
+def ProcessUEContextReleaseCommand(rec_dic,IEs, dic):
     #assumes only one session so no need to check MME-UE-S1AP-ID and ENB-UE-S1AP-ID
     IEs = []
-    IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'ignore'})
-    IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'ignore'})
+    #if dic['MME-UE-S1AP-ID-OLD'] == None:
+    #    IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'ignore'})
+    #    IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'ignore'})
+    #else:
+    #    IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID-OLD']), 'criticality': 'ignore'})
+    #    IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID-OLD']), 'criticality': 'ignore'})   
+    for key,value in rec_dic.items():
+        if isinstance(value,tuple):
+            for dic_check in value:
+                if isinstance(dic_check,dict):
+                    for id_pair in dic_check['protocolIEs']:
+                        if id_pair['id'] == 99:
+                            for recv_id in id_pair['value']:
+                                if isinstance(recv_id,tuple):
+                                    if isinstance(recv_id[1],dict):
+                                        IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', recv_id[1]['mME-UE-S1AP-ID']), 'criticality': 'ignore'})
+                                        IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', recv_id[1]['eNB-UE-S1AP-ID']), 'criticality': 'ignore'})   
 
     val = ('successfulOutcome', {'procedureCode': 23, 'value': ('UEContextReleaseComplete', {'protocolIEs': IEs}), 'criticality': 'ignore'})
     dic = eMENU.print_log(dic, "S1AP: sending UEContextReleaseComplete")
@@ -2119,10 +2215,11 @@ def ProcessUEContextReleaseCommand(IEs, dic):
     dic['MME-UE-S1AP-ID'] = 0
     
     if dic['GTP-U'] != b'\x02' and len(dic['SGW-GTP-ADDRESS']) > 0:
-        #disable but do not change variable value (i.e. to activate in case service request is initiated)
-        os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-        os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
-        dic = eMENU.print_log(dic, "GTP-U: Deactivation due to ContextRelease")
+       #disable but do not change variable value (i.e. to activate in case service request is initiated)
+        #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+       # os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
+       pass
+    dic = eMENU.print_log(dic, "GTP-U: Deactivation due to ContextRelease")
     
     #if uecontext release was triggered by csfb
     if dic['UECONTEXTRELEASE-CSFB'] == True:
@@ -2205,9 +2302,10 @@ def UEContextReleaseRequest(dic):
     
     if dic['GTP-U'] != b'\x02' and len(dic['SGW-GTP-ADDRESS']) > 0:
         
-        os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
-        os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
-        dic = eMENU.print_log(dic, "GTP-U: Deactivation due to ContextRelease")
+        #os.write(dic['PIPE-OUT-GTPU-ENCAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + dic['SGW-TEID'][-1])
+        #os.write(dic['PIPE-OUT-GTPU-DECAPSULATE'],b'\x02' + dic['SGW-GTP-ADDRESS'][-1] + b'\x00\x00\x00' + bytes([dic['RAB-ID'][-1]]))
+        pass
+    dic = eMENU.print_log(dic, "GTP-U: Deactivation due to ContextRelease")
         
     return val
 
@@ -2273,17 +2371,16 @@ def SecondaryRATDataUsageReport(dic):
 
     return val
 
-
-
-
-def ProcessS1AP(PDU, client, session_dict):
-
-    buffer = client.recv(4096)
-    
-    PDU.from_aper(buffer)
-    
-    (type, pdu_dict) = PDU()
-
+def send_gtpu(session_d):
+    try:
+        hex_str= bytes.fromhex('30ff0064') + session_d['SGW-TEID'][0] + bytes.fromhex('4500006493d9000040015652') + session_d['PDN-ADDRESS'][0][1:] + bytes.fromhex('0808080808006ace039600015635c5637dfc0b0008090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344454647')
+        gtp=hex_str
+        pkt = IP(src="192.168.197.180",dst="192.168.197.201")/UDP(sport=2152,dport=2152)/Raw(gtp)
+        for i in range(10):
+            send(pkt,iface="ens32",verbose=0)
+    except:
+        pass
+def ProcessS1AP(type,pdu_dict, client, session_dict):
     
     if type == 'initiatingMessage':
         procedure, protocolIEs_list = pdu_dict['value'][0], pdu_dict['value'][1]['protocolIEs']
@@ -2319,7 +2416,7 @@ def ProcessS1AP(PDU, client, session_dict):
                 
         elif procedure == 'UEContextReleaseCommand':
             session_dict = eMENU.print_log(session_dict, "S1AP: UEContextReleaseCommand received")
-            answer, session_dict = ProcessUEContextReleaseCommand(protocolIEs_list, session_dict)
+            answer, session_dict = ProcessUEContextReleaseCommand(pdu_dict,protocolIEs_list, session_dict)
             if answer != None:
                 PDU.set_val(answer)
                 message = PDU.to_aper()               
@@ -2402,6 +2499,7 @@ def ProcessS1AP(PDU, client, session_dict):
 ######################################################################################################################################
 
 def open_tun(n):
+    n = int(n)
     TUNSETIFF = 0x400454ca
     IFF_TUN   = 0x0001
     IFF_TAP   = 0x0002
@@ -2414,7 +2512,7 @@ def open_tun(n):
         f = os.open("/dev/net/tun", os.O_RDWR)
         ifs = fcntl.ioctl(f, TUNSETIFF, struct.pack("16sH", bytes("tun%d" % n, "utf-8"), TUNMODE))
         #ifname = ifs[:16].strip("\x00")
-        subprocess.call("ifconfig tun%d up" % n, shell=True) 
+        subprocess.call("ifconfig tun%d up" % n, shell=True)
     elif sys.platform == "darwin":
         f = os.open("/dev/tun" + str(n), os.O_RDWR)
         subprocess.call("ifconfig tun" + str(n) + " up", shell=True)
@@ -2422,283 +2520,291 @@ def open_tun(n):
     return f
 
 def gtp_u_header(teid, length):
-    
     gtp_flags = b'\x30'
     gtp_message_type = b'\xff'
     gtp_length = struct.pack("!H", length)
     gtp_teid = teid
-
+    fin=gtp_flags + gtp_message_type + gtp_length + gtp_teid
     return gtp_flags + gtp_message_type + gtp_length + gtp_teid
 
-def encapsulate_gtp_u(args):  
-        
-    s_gtpu = args[0]
-    tap_fd = args[1]
-    pipe_in_gtpu_encapsulate = args[2]
-    gtp_kernel = args[3]
-
-    socket_list = []
-    socket_list.append(tap_fd)
-    socket_list.append(pipe_in_gtpu_encapsulate)
-    active = False
-    
+def encapsulate_gtp_u(ul_socket,ul_gtp):  
+    s_gtpu=ul_socket
     while True:
-        read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
-        for sock in read_sockets:    
-            if sock == tap_fd:
-                try:
-                    if active == True and gtp_kernel == False:    
-                        tap_packet = os.read(tap_fd, 1514)
-                        s_gtpu.sendto(gtp_u_header(teid, len(tap_packet)) + tap_packet, (gtp_dst_ip, 2152))
-                except:
-                    pass
-            elif sock == pipe_in_gtpu_encapsulate:
-                pipe_packet = os.read(sock, 9)
-                gtp_dst_ip = socket.inet_ntoa(pipe_packet[1:5])
-                teid = pipe_packet[5:9] 
-                if pipe_packet[0:1] == b'\01':
-                    active = True                             
-                elif pipe_packet[0:1] == b'\x02':
-                    active = False
-                                  
-                    
-    return 0
+        try:
+            tap_packet = ul_gtp.recvfrom(5000)
+            if tap_packet[0][26:30] in gtp_dict:
+                teid=gtp_dict[tap_packet[0][26:30]][0]
+                s_gtpu.sendto(gtp_u_header(teid, len(tap_packet[0][14:])) + tap_packet[0][14:], (socket.inet_ntoa(gtp_dict[tap_packet[0][26:30]][1]), 2152))
+        except:
+            pass           
 
+def decapsulate_gtp_u(ul_socket,to_ue):
 
-def decapsulate_gtp_u(args):
-
-    s_gtpu = args[0]
-    tap_fd = args[1]
-    pipe_in_gtpu_decapsulate = args[2]
-    # if gtp_kernel == True, then the kernel will decapsulate the GTP-U packets, so we don't need to do it here
-    gtp_kernel = args[3]
-
-    socket_list = []
-    socket_list.append(s_gtpu)
-    socket_list.append(pipe_in_gtpu_decapsulate)
-    active = False
+    s_gtpu = ul_socket
+    ethHeader=Ether(src=netifaces.ifaddresses('brlo')[netifaces.AF_LINK][0]['addr'],dst="ff:ff:ff:ff:ff:ff",type=0x0800)
     
-    while True:
-        read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
-        for sock in read_sockets:    
-            if sock == s_gtpu:    
+    while True: 
 
-                gtp_packet, gtp_address = s_gtpu.recvfrom(2000)
+        gtp_packet, gtp_address = s_gtpu.recvfrom(5000)
+        if gtp_packet[0:2] == b'\x30\xff':
+            #raw_packet=Ether(gtp_packet[8:])
+            pkt=ethHeader/gtp_packet[8:]
+            sendp(pkt,iface="brlo",verbose=0)
+                             
+        elif gtp_packet[1:2] == b'\x01':
+            gtp_echo_response = bytearray(gtp_packet) + b'\x0e\x00'
+            gtp_echo_response[1] = 2
+            gtp_echo_response[3] += 2
+            s_gtpu.sendto(gtp_echo_response, (socket.inet_ntoa(session_dict['SGW-GTP-ADDRESS'][-1]), 2152))
 
-                if active == True or active == False:
-                    if gtp_address[0] == gtp_src_ip:               
-                        if gtp_packet[0:2] == b'\x30\xff' and gtp_packet[4:8] ==  teid:
-                            os.write(tap_fd,gtp_packet[8:])                         
-                        elif gtp_packet[1:2] == b'\xff' and gtp_packet[4:8] == teid:
-                            os.write(tap_fd,gtp_packet[12:])  
-                        elif gtp_packet[1:2] == b'\x01':
-                            gtp_echo_response = bytearray(gtp_packet) + b'\x0e\x00'
-                            gtp_echo_response[1] = 2
-                            gtp_echo_response[3] += 2
-                            s_gtpu.sendto(gtp_echo_response, gtp_address)
-                                                  
-            elif sock == pipe_in_gtpu_decapsulate:
-                pipe_packet = os.read(sock, 9)
-                gtp_src_ip = socket.inet_ntoa(pipe_packet[1:5])
-                teid = pipe_packet[5:9] 
-                if pipe_packet[0:1] == b'\01':                
-                    active = True
-                elif pipe_packet[0:1] == b'\x02':              
-                    active = False
-               
+
                 
-    return 0
+# User Object class
+class UserDict(dict):
+    def __init__(self, *arg, **kw):
+        super(UserDict, self).__init__(*arg, **kw)
+        self.setdefault('OP',None)
+        self.setdefault('ENB-UE-S1AP-ID',1000)
+        self.setdefault('APN',"internet")
+        self.setdefault('ENB-CELLID',1000000)
+        self.setdefault('ENB-TAC1',int(73).to_bytes(2, byteorder='big'))
+        self.setdefault('ENB-TAC2',int(74).to_bytes(2, byteorder='big'))
+        self.setdefault('LOCAL_KEYS',False)
+        self.setdefault('SERIAL-INTERFACE','/dev/ttyUSB2')
+        self.setdefault('LOCAL_MILENAGE',True)
+        self.setdefault('ENB-NAME','eNB')
+        self.setdefault('ENB-PLMN',return_plmn_s1ap(self.get('PLMN')))
+        self.setdefault('PDN-ADDRESS-IPV6',None)
+        self.setdefault('ENB-TAC', self.get('ENB-TAC1'))
+        self.setdefault('ENB-TAC-NBIOT',b'\x00\x02')     
+        self.setdefault('ENB-ID',1)
+        self.setdefault('UP-COUNT',-1)    
+        self.setdefault('DOWN-COUNT',-1)
+        self.setdefault('ENC-ALG',0)
+        self.setdefault('INT-ALG',0) 
+        self.setdefault('ENC-KEY',None)
+        self.setdefault('INT-KEY',None)  
+        self.setdefault('NAS-SMS-MT',None)
+        self.setdefault('S-TMSI',None)
+        self.setdefault('TMSI',None)
+        self.setdefault('LAI',None)
+        self.setdefault('CPSR-TYPE',0)
+        self.setdefault('S1-TYPE',"4G")
+        self.setdefault('MOBILE-IDENTITY-TYPE',"IMSI") 
+        self.setdefault('SESSION-SESSION-TYPE',"NONE")
+        self.setdefault('SESSION-TYPE',"4G")
+        self.setdefault('SESSION-TYPE-TUN',1)
+        self.setdefault('PDP-TYPE',1)
+        self.setdefault('ATTACH-PDN',None)
+        self.setdefault('ATTACH-TYPE',1)
+        self.setdefault('TAU-TYPE',0)
+        self.setdefault('SMS-UPDATE-TYPE',False)
+        self.setdefault('NBIOT-SESSION-TYPE',"NONE")
+        self.setdefault('CPSR-TYPE',0)
+        self.setdefault('UECONTEXTRELEASE-CSFB',False)
+        self.setdefault('PROCESS-PAGING',True)
+        self.setdefault('PCSCF-RESTORATION',False)
+        self.setdefault('DNS-REQ',True)
+        self.setdefault('NAS-KEY-SET-IDENTIFIER',0)
+        self.setdefault('LOG',[])
+        self.setdefault('NON-IP-PACKET',1)
+        self.setdefault('NON-IP-PACKETS',[NON_IP_PACKET_1, NON_IP_PACKET_2, NON_IP_PACKET_3, NON_IP_PACKET_4])
+        self.setdefault('DATA-INT',"ens40")
+#        self.setdefault('MOBILE-IDENTITY',self.get('ENCODED-IMSI'))
+#######################(###############################################################################################################
+#######################(###############################################################################################################
 
-    
+
 ######################################################################################################################################
 ######################################################################################################################################
-
-
-######################################################################################################################################
-######################################################################################################################################
-def main():
-
-    
-    session_dict = {}
-
-    parser = OptionParser()    
+if __name__ == "__main__":
+    os.system("ip netns show |awk {'print $1'}|xargs -I {} ip netns del {}")
+    ue_eth=[(f"veth{n}",f"neth{n}") for n in range(1000)]
+    upteid=1
+    bridge_name="brlo"  
+    user_dict = {}
+    gtp_dict = {}
+    enb_s1ap_id = 1
+    parser = OptionParser()
     parser.add_option("-i", "--ip", dest="eNB_ip", help="eNB Local IP Address")
     parser.add_option("-m", "--mme", dest="mme_ip", help="MME IP Address")
-    parser.add_option("-g", "--gateway_ip_address", dest="gateway_ip_address", help="gateway IP address") 
-    parser.add_option("-u", "--usb_device", dest="serial_interface", help="modem port (i.e. COMX, or /dev/ttyUSBX), smartcard reader index (0, 1, 2, ...), or server for https")     
-    parser.add_option("-I", "--imsi", dest="imsi", help="IMSI (15 digits)")
-    parser.add_option("-E", "--imei", dest="imei", help="IMEI-SV (16 digits)")    
-    parser.add_option("-K", "--ki", dest="ki", help="ki for Milenage (if not using option -u)")    
-    parser.add_option("-P", "--op", dest="op", help="op for Milenage (if not using option -u)")    
-    parser.add_option("-C", "--opc", dest="opc", help="opc for Milenage (if not using option -u)")    
-    parser.add_option("-o", "--operator", dest="plmn", help="Operator MCC+MNC")
-    parser.add_option("--tac1", dest="tac1", help="1st tracking area code")
-    parser.add_option("--tac2", dest="tac2", help="2nd tracking area code")
-    parser.add_option("-Z", "--gtp-kernel", action="store_true", dest="gtp_kernel", help="Use GTP Kernel. Needs libgtpnl", default=False)
-    
     (options, args) = parser.parse_args()
-    #Detect if no options set:
-    if len(sys.argv) <= 1:
-        print("No arguments passed - You need to specify parameters to use.")
-        parser.print_help()
-        exit(1)
-
-    if options.mme_ip is None:
-        print('MME IP Required. Exiting.')
-        exit(1)
-    if options.eNB_ip is None:
-        print('eNB Local IP Required! Exiting.')
-        exit(1)
-    if options.gateway_ip_address is not None:
-        subprocess.call("route add " + options.mme_ip + "/32 gw " + options.gateway_ip_address, shell=True)
-        session_dict['GATEWAY'] = options.gateway_ip_address
-    else:
-        session_dict['GATEWAY'] = None    
-        
-    if options.serial_interface is None:
-        session_dict['LOCAL_KEYS'] = True
-    else:
-        session_dict['LOCAL_KEYS'] = False
-        session_dict['SERIAL-INTERFACE'] = options.serial_interface
-        session_dict['LOCAL_MILENAGE'] = False
-
-    if options.imsi is None:
-        session_dict['IMSI'] = None
-    else:
-        session_dict['IMSI'] = options.imsi
-
-    if options.imei is None:
-        session_dict['IMEISV'] = None
-    else:
-        session_dict['IMEISV'] = options.imei
-
-    if options.ki is not None and (options.op is not None or options.opc is not None):
-        session_dict['LOCAL_KEYS'] = False
-        session_dict['LOCAL_MILENAGE'] = True
-        session_dict['KI'] = unhexlify(options.ki)
-        if options.op is not None:
-            session_dict['OP'] = unhexlify(options.op)
-            session_dict['OPC'] = None
-        elif options.opc is not None:
-            session_dict['OPC'] = unhexlify(options.opc)
-            session_dict['OP'] = None
-    else:
-        session_dict['LOCAL_MILENAGE'] = False
-
-    if options.tac1 is not None:
-        session_dict['ENB-TAC1'] = int(options.tac1).to_bytes(2, byteorder='big')
-    else:
-        session_dict['ENB-TAC1'] = None
-
-    if options.tac2 is not None:
-        session_dict['ENB-TAC2'] = int(options.tac2).to_bytes(2, byteorder='big')
-    else:
-        session_dict['ENB-TAC2'] = None
-
-    if options.plmn is not None:
-        session_dict['PLMN'] = options.plmn
-    else:
-        session_dict['PLMN'] = PLMN    
-    
-    if options.gtp_kernel is True:
-        session_dict['GTP-KERNEL'] = True
-        subprocess.call("modprobe gtp", shell=True)
-        subprocess.call("gtp-link del gtp1", shell=True)
-        subprocess.call("killall gtp-tunnel", shell=True)
-        subprocess.call("killall gtp-link", shell=True)
-    else:
-        session_dict['GTP-KERNEL'] = False
-    
+    options.serial_interface="/dev/ttyUSB2"
+    sys_queue="/foo"
+    tmp_file="/tmp/foo"
+    bridge_up()
     server_address = (options.mme_ip, 36412)
 
     #socket options
-    client = socket.socket(socket.AF_INET,socket.SOCK_STREAM,socket.IPPROTO_SCTP) 
-    client.bind((options.eNB_ip, 0))
-   
+    client = socket.socket(socket.AF_INET,socket.SOCK_STREAM,socket.IPPROTO_SCTP)
+    client.settimeout(5)
+    try:
+       client.bind((options.eNB_ip, 0))
+    except Exception as e:
+       logging.info(f"enb ip error {e} {options.eNB_ip}")
+       sys.exit()
+
     sctp_default_send_param = bytearray(client.getsockopt(132,10,32))
     sctp_default_send_param[11]= 18
     client.setsockopt(132, 10, sctp_default_send_param)
         
     #variables initialization 
     PDU = S1AP.S1AP_PDU_Descriptions.S1AP_PDU
-    
     #################################################
     #################################################
     #################################################
     
     # settting initial settings
-    session_dict = session_dict_initialization(session_dict)
-    session_dict['ENB-GTP-ADDRESS-INT'] = ip2int(options.eNB_ip)
-    session_dict['ENB-GTP-ADDRESS'] = socket.inet_aton(options.eNB_ip)
-
-
-    client.connect(server_address)
-
+    #session_dict = session_dict_initialization(session_dict)
+    #session_dict['ENB-GTP-ADDRESS-INT'] = ip2int(options.eNB_ip)
+    #session_dict['ENB-GTP-ADDRESS'] = socket.inet_aton(options.eNB_ip)
+    session_dict=UserDict()
     s_gtpu = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    if options.gtp_kernel == False: 
-        s_gtpu.bind((options.eNB_ip, 2152))
-    #for gtp-u
-    dev = open_tun(1)
-    #for s1ap
-    dev_nbiot = open_tun(2)
-    session_dict['NBIOT-TUN'] = dev_nbiot
-    
+    s_gtpu.bind((options.eNB_ip, 2152))
     pipe_in_gtpu_encapsulate, pipe_out_gtpu_encapsulate = os.pipe()
     pipe_in_gtpu_decapsulate, pipe_out_gtpu_decapsulate = os.pipe()
-    
     session_dict['PIPE-OUT-GTPU-ENCAPSULATE'] = pipe_out_gtpu_encapsulate
     session_dict['PIPE-OUT-GTPU-DECAPSULATE'] = pipe_out_gtpu_decapsulate
     session_dict['GTP-U'] = b'\x02' # inactive
-
-    worker1 = Thread(target = encapsulate_gtp_u, args = ([s_gtpu, dev, pipe_in_gtpu_encapsulate, options.gtp_kernel],))
-    worker2 = Thread(target = decapsulate_gtp_u, args = ([s_gtpu, dev, pipe_in_gtpu_decapsulate, options.gtp_kernel],))
+    ul_gtp= socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+    ul_gtp.bind((bridge_name,0)) 
+    worker1 = Thread(target = encapsulate_gtp_u, args = (s_gtpu,ul_gtp,))
+    worker2 = Thread(target = decapsulate_gtp_u, args = (s_gtpu,ul_gtp,))
     worker1.setDaemon(True)
     worker2.setDaemon(True)
     worker1.start()
     worker2.start()
 
-  
-    eMENU.print_menu(session_dict['LOG'])
-  
-   
-    socket_list = [sys.stdin ,client, dev_nbiot]
-    
+    try:
+        client.connect(server_address)
+    except Exception as e:
+        logging.info(f"Unable to connect to edge error {e} {server_address}")
+        os.system(f"echo FAILED>/var/log/sim/enb_status")
+        sys.exit()
+
+    q = posixmq.Queue(sys_queue)
+    while q.qsize()>0:
+        q.get()
+    #socket_list = [sys.stdin ,client, dev_nbiot]
+    send_fd= open(tmp_file, 'w')
+    socket_list = [send_fd,client]
+    imeisv=1000000000000000
+    os.system(f"echo CONNECTED>/var/log/sim/enb_status")
     while True:
-        
         read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
-        
         for sock in read_sockets:
             if sock == client:
-                PDU, client, session_dict = ProcessS1AP(PDU, client, session_dict)
-               
-            elif sock == sys.stdin:        
-                msg = sys.stdin.readline()
-                
-                PDU, client, session_dict = eMENU.ProcessMenu(PDU, client, session_dict, msg)
-                
-                
-            elif sock == dev_nbiot:
-                session_dict['USER-DATA-CONTAINER'] = os.read(dev_nbiot, 1514)
-                
-                if session_dict['STATE'] > 1 and session_dict['SESSION-TYPE'] == 'NBIOT' and session_dict['GTP-U'] == b'\x01':
-                    session_dict = ProcessUplinkNAS('esm data transport', session_dict)
-                    
-                    if session_dict['MME-UE-S1AP-ID'] > 0: #s1 up -
-                        PDU.set_val(UplinkNASTransport(session_dict))
+                buffer = client.recv(4096)
+                PDU.from_aper(buffer)
+                (type, pdu_dict) = PDU()
+                for initial_dic in pdu_dict['value']:
+                    if 'protocolIEs' in initial_dic:
+                        for final_dic in  initial_dic['protocolIEs']:
+                            if 'id' in final_dic and final_dic['id'] == 8:
+                                for user_key, user_value in user_dict.items():
+                                    if final_dic['value'][1] == user_value['ENB-UE-S1AP-ID']:
+                                        session_dict=user_dict[user_key]
+                                        break
+                if  pdu_dict['value'][0] == 'Paging':                   
+                    for i in pdu_dict['value'][1]['protocolIEs']:
+                        if i['id'] == 43:
+                            if i['value'][1][0] == 's-TMSI':
+                                MME_CODE = i['value'][1][1]['mMEC']
+                                M_TMSI = i['value'][1][1]['m-TMSI']
+                                for user_key, user_value in user_dict.items():
+                                    if user_value['S-TMSI'] == MME_CODE + M_TMSI:
+                                        session_dict=user_dict[user_key]
+
+                PDU, client, session_dict = ProcessS1AP(type, pdu_dict, client, session_dict)
+            elif sock == send_fd:
+                  if q.qsize()>0: 
+                    queue_msg=q.get()
+                    if queue_msg['procedure']=='s1-setup':
+                        session_dict=UserDict()
+                        if 'mcc' in queue_msg and 'mnc' in queue_msg:
+                            session_dict['PLMN'] = f"{queue_msg['mcc']}{queue_msg['mnc']}"
+                        else:
+                            session_dict['PLMN'] = '111111'
+                        session_dict['ENB-PLMN']=return_plmn_s1ap(session_dict['PLMN']) 
+                        if 'enb_id' in queue_msg:
+                            session_dict['ENB-ID'] =int(queue_msg['enb_id'])
+                        else:
+                            session_dict['ENB-ID'] =100000
+                        if 'tac1' in queue_msg:
+                            session_dict['ENB-TAC1']=int(queue_msg['tac1']).to_bytes(2, byteorder='big')
+                        else:
+                            session_dict['ENB-TAC1']=int(queue_msg[73]).to_bytes(2, byteorder='big')
+                        if 'tac2' in queue_msg:
+                            session_dict['ENB-TAC2']=int(queue_msg['tac2']).to_bytes(2, byteorder='big')
+                        else:
+                            session_dict['ENB-TAC2']=int(queue_msg[74]).to_bytes(2, byteorder='big')
                     else:
-                        session_dict = ProcessUplinkNAS('control plane service request with esm message container', session_dict)
-                        PDU.set_val(InitialUEMessage(session_dict))    
-                    
-                    
-                    message = PDU.to_aper()  
-                    client = set_stream(client, 1)
-                    bytes_sent = client.send(message)
-
-
-
+                        if queue_msg['imsi'] in user_dict:
+                                logging.info(f'imsi {queue_msg} found in object')
+                                session_dict = user_dict[queue_msg['imsi']]
+                                try:
+                                    del gtp_dict[hexlify(socket.inet_ntoa(session_dict['PDN-ADDRESS-IPV4']))]
+                                    ue_eth_pair(session_dict['UE-NAMESPACE'])
+                                except:
+                                    pass
+                                if 'auth-error' in queue_msg:
+                                    if queue_msg['auth-error']:
+                                        session_dict['AUTH-ERROR']=True
+                                else:
+                                    session_dict['AUTH-ERROR']=False
+                        else:
+                            if set(('imsi', 'ki','opc','mcc','mnc')).issubset(queue_msg):
+                                imeisv += 1
+                                user_dict[queue_msg['imsi']]=UserDict()
+                                session_dict=user_dict[queue_msg['imsi']]
+                                session_dict['MME-UE-S1AP-ID']=None
+                                session_dict['IMSI']=queue_msg['imsi']
+                                session_dict['KI']=unhexlify(queue_msg['ki'])
+                                session_dict['OPC']=unhexlify(queue_msg['opc'])
+                                session_dict['PLMN']= f"{queue_msg['mcc']}{queue_msg['mnc']}"
+                                session_dict['ENB-PLMN']=return_plmn_s1ap(session_dict['PLMN'])
+                                session_dict['IMEISV']= str(imeisv)
+                                session_dict['STATE']=1
+                                session_dict['PDN-ADDRESS-IPV4']=None
+                                session_dict['PDN-ADDRESS']= []
+                                session_dict['ENB-GTP-ADDRESS-INT']=''
+                                session_dict['RAB-ID']=[]
+                                session_dict['SGW-GTP-ADDRESS']=[]
+                                session_dict['SGW-TEID']=[]
+                                session_dict['EPS-BEARER-IDENTITY']=[]
+                                session_dict['EPS-BEARER-TYPE']=[]  # default 0, dedicated 1
+                                session_dict['EPS-BEARER-STATE']=[] # active 1, inactive 0
+                                session_dict['EPS-BEARER-APN']=[]
+                                session_dict['ENCODED-IMSI']=eNAS.encode_imsi(session_dict['IMSI'])
+                                session_dict['MOBILE-IDENTITY']=session_dict['ENCODED-IMSI']
+                                session_dict['ENCODED-IMEI']=eNAS.encode_imei(session_dict['IMEISV'])
+                                session_dict['ENCODED-GUTI']=eNAS.encode_guti(int(session_dict['PLMN']),32769,1,12345678)
+                                session_dict['KASME'] = b'kasme   kasme   kasme   kasme   '
+                                session_dict['XRES'] = b'xresxres'
+                                session_dict['NAS-KEY-EEA1']=return_key(session_dict['KASME'],1,'NAS-ENC')
+                                session_dict['NAS-KEY-EEA2']=return_key(session_dict['KASME'],2,'NAS-ENC')
+                                session_dict['NAS-KEY-EEA3']=return_key(session_dict['KASME'],3,'NAS-ENC')
+                                session_dict['NAS-KEY-EIA1']=return_key(session_dict['KASME'],1,'NAS-INT')
+                                session_dict['NAS-KEY-EIA2']=return_key(session_dict['KASME'],2,'NAS-INT')
+                                session_dict['NAS-KEY-EIA3']=return_key(session_dict['KASME'],3,'NAS-INT')
+                                session_dict['ENB-GTP-ADDRESS-INT']=ip2int(options.eNB_ip)
+                                session_dict['PIPE-OUT-GTPU-ENCAPSULATE'] = pipe_out_gtpu_encapsulate
+                                session_dict['PIPE-OUT-GTPU-DECAPSULATE'] = pipe_out_gtpu_decapsulate
+                                session_dict['GTP-U'] = b'\x02'
+                                session_dict['UL-TEID'] = None
+                                session_dict['AUTH-ERROR']=False
+                                session_dict['GTP-KEY']=None
+                                session_dict['UE-NAMESPACE']=queue_msg['imsi']
+                            else:
+                                break
+                    msg=queue_msg['procedure']
+                    if 'IMSI' in session_dict:
+                        logging.info(f"{msg} {session_dict['IMSI']} no if active user in tool {len(user_dict)} no of gtp tunnel {len(gtp_dict)}")
+                    else:
+                        logging.info(f"{msg} no if active user in tool {len(user_dict)} no of gtp tunnel {len(gtp_dict)}")
+                    PDU, client, session_dict = eMENU.ProcessMenu(PDU, client, session_dict, msg)
     client.close()
 
 
 
-if __name__ == "__main__":    
-    main()
+

@@ -1,6 +1,11 @@
 import struct
 import socket
 from binascii import hexlify, unhexlify
+import logging
+import os
+os.system("mkdir -p /var/log/sim/")
+logging.basicConfig(filename="/var/log/sim/tool.log",filemode='w',format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S',level=logging.DEBUG)
+logger = logging.getLogger('edge_log')
 
 #BASE FUNCTION to be called from external 
 
