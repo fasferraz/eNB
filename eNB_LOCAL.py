@@ -703,6 +703,7 @@ def nas_pco(pdp_type,pcscf_restoration):
             return b'\x80\x80\x21\x1c\x01\x00\x00\x1c\x81\x06\x00\x00\x00\x00\x82\x06\x00\x00\x00\x00\x83\x06\x00\x00\x00\x00\x84\x06\x00\x00\x00\x00\x00\x03\x00\x00\x0c\x00\x00\x01\x00\x00\x0e\x00'
         else:
             return b'\x80\x80\x21\x1c\x01\x00\x00\x1c\x81\x06\x00\x00\x00\x00\x82\x06\x00\x00\x00\x00\x83\x06\x00\x00\x00\x00\x84\x06\x00\x00\x00\x00\x00\x03\x00\x00\x0c\x00\x00\x01\x00\x00\x12\x00\x00\x0e\x00'
+
      
 #-------------------------------------------------------------------#
 ### ESM ### :
@@ -1172,6 +1173,7 @@ def ProcessUplinkNAS(message_type, dic):
 
     elif message_type == 'uplink nas transport': 
         SMS = b'\x19\x01\x3c\x00\x02\x00\x07\x91\x53\x91\x26\x01\x00\x00\x30\x01\x02\x0c\x91\x53\x91\x66\x78\x92\x30\x00\x00\x27\x45\xb7\x3d\x1d\x6e\xb5\xcb\xa0\x7a\x1b\x34\x6d\x4e\x41\x73\xb3\x19\x04\x0f\xcb\xc3\x20\x73\x58\x5f\x96\x83\xea\x6d\x10\xbd\x3c\xa7\x97\x01'    
+        
         dic['NAS-ENC'] = nas_uplink_nas_transport(SMS)
         dic['UP-COUNT'] += 1 
         dic['DIR'] = 0
@@ -1798,6 +1800,20 @@ def UplinkNASTransport(dic):
     return val    
 
 
+def UECapabilityInfoIndication(dic):
+
+    IEs = []
+    IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'reject'})
+    IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'reject'})
+    IEs.append({'id': 74, 'value': ('UERadioCapability', dic['UE-RADIO-CAPABILITY']), 'criticality': 'ignore'})
+
+
+    val = ('initiatingMessage', {'procedureCode': 22, 'value': ('UECapabilityInfoIndication', {'protocolIEs': IEs}), 'criticality': 'ignore'})
+        
+    dic = eMENU.print_log(dic, "S1AP: sending UECapabilityInfoIndication")
+    return val    
+
+
 def ProcessLocationReportingControl(IEs, dic):
 
     for i in IEs:
@@ -1911,6 +1927,9 @@ def ProcessInitialContextSetupRequest(IEs, dic):
 
         
     val = []
+
+    if dic['UE-RADIO-CAPABILITY'] is not None: 
+        val.append(UECapabilityInfoIndication(dic))
     
     IEs = []
     IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'ignore'})
@@ -2535,6 +2554,8 @@ def main():
     parser.add_option("--tac1", dest="tac1", help="1st tracking area code")
     parser.add_option("--tac2", dest="tac2", help="2nd tracking area code")
     parser.add_option("-Z", "--gtp-kernel", action="store_true", dest="gtp_kernel", help="Use GTP Kernel. Needs libgtpnl", default=False)
+    parser.add_option("-S", "--maxseg", dest="maxseg", help="SCTP MAX_SEG (>463 bytes)")
+    parser.add_option("--ue-radio-capability", dest="ueradiocapability", help="UERadioCapability in hex string")
     
     (options, args) = parser.parse_args()
     #Detect if no options set:
@@ -2608,6 +2629,11 @@ def main():
         subprocess.call("killall gtp-link", shell=True)
     else:
         session_dict['GTP-KERNEL'] = False
+
+    if options.ueradiocapability is not None:
+        session_dict['UE-RADIO-CAPABILITY'] = unhexlify(options.ueradiocapability)
+    else:
+        session_dict['UE-RADIO-CAPABILITY'] = None
     
     server_address = (options.mme_ip, 36412)
 
@@ -2618,7 +2644,13 @@ def main():
     sctp_default_send_param = bytearray(client.getsockopt(132,10,32))
     sctp_default_send_param[11]= 18
     client.setsockopt(132, 10, sctp_default_send_param)
-        
+
+    if options.maxseg is not None:
+        if int(options.maxseg)>463:
+            client.setsockopt(132,13,int(options.maxseg))
+    else:
+        client.setsockopt(132,13,0)
+
     #variables initialization 
     PDU = S1AP.S1AP_PDU_Descriptions.S1AP_PDU
     
