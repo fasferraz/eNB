@@ -2648,8 +2648,6 @@ def main():
     if options.maxseg is not None:
         if int(options.maxseg)>463:
             client.setsockopt(132,13,int(options.maxseg))
-    else:
-        client.setsockopt(132,13,0)
 
     #variables initialization 
     PDU = S1AP.S1AP_PDU_Descriptions.S1AP_PDU
