@@ -185,7 +185,8 @@ def session_dict_initialization(session_dict):
     
     session_dict['ENCODED-IMSI'] = eNAS.encode_imsi(session_dict['IMSI'])
     session_dict['ENCODED-IMEI'] = eNAS.encode_imei(IMEISV)
-    session_dict['ENCODED-GUTI'] = eNAS.encode_guti(session_dict['PLMN'],32769,1,12345678)
+    if session_dict['ENCODED-GUTI'] == None:
+        session_dict['ENCODED-GUTI'] = eNAS.encode_guti(session_dict['PLMN'],32769,1,12345678)
     
     session_dict['S-TMSI'] = None
     
@@ -1445,7 +1446,6 @@ def ProcessDownlinkNAS(dic):
             if i[0] == 'guti':
                 dic = eMENU.print_log(dic, str(eNAS.decode_eps_mobile_identity(dic['GUTI'] )))
                 if dic['GUTI'] != i[1] and dic['NAS'] == None: # new GUTI assigned
-                    
                     dic['NAS-ENC'] = nas_tracking_area_update_complete()
                     dic['UP-COUNT'] += 1 
                     dic['DIR'] = 0
@@ -2556,7 +2556,9 @@ def main():
     parser.add_option("-Z", "--gtp-kernel", action="store_true", dest="gtp_kernel", help="Use GTP Kernel. Needs libgtpnl", default=False)
     parser.add_option("-S", "--maxseg", dest="maxseg", help="SCTP MAX_SEG (>463 bytes)")
     parser.add_option("--ue-radio-capability", dest="ueradiocapability", help="UERadioCapability in hex string")
-    
+    parser.add_option("-G", "--guti", dest="guti", help="GUTI in format <mcc+mcn>-<mme-group-id>-<mme-code>-<m-tmsi>") 
+
+
     (options, args) = parser.parse_args()
     #Detect if no options set:
     if len(sys.argv) <= 1:
@@ -2634,6 +2636,12 @@ def main():
         session_dict['UE-RADIO-CAPABILITY'] = unhexlify(options.ueradiocapability)
     else:
         session_dict['UE-RADIO-CAPABILITY'] = None
+
+    if options.guti is not None:
+        aux = options.guti.split ('-')
+        session_dict['ENCODED-GUTI'] = eNAS.encode_guti(aux[0], int(aux[1]), int(aux[2]), int(aux[3]))
+    else:
+        session_dict['ENCODED-GUTI'] = None
     
     server_address = (options.mme_ip, 36412)
 
