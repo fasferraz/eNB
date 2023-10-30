@@ -188,3 +188,43 @@ For authentication the application also accepts Ki and OP/OPC for Milenage opera
 
 ## New branch added by Avmalavi that supports Multi-User!!!!
 Check it here: https://github.com/fasferraz/eNB/tree/multi-user
+
+## Updated version (2023/10/30):
+- New option to support setting SCTP MAX SEG
+- New option to define UERadioCapability in hex string (useful to test UERadioCapability bigger than MTU)
+- New option to support a second SCTP connection to another MME, so that you can establish session in one MME, and perform other procedures like TAU in the other, etc...
+- New option to set GUTI by CLI. This may be usueful to test S10 procedures (GTP or DNS)
+
+```
+  python3 eNB_LOCAL.py -h
+Usage: eNB_LOCAL.py [options]
+
+Options:
+  -h, --help            show this help message and exit
+  -i ENB_IP, --ip=ENB_IP
+                        eNB Local IP Address
+  -m MME_IP, --mme=MME_IP
+                        MME IP Address
+  -g GATEWAY_IP_ADDRESS, --gateway_ip_address=GATEWAY_IP_ADDRESS
+                        gateway IP address
+  -u SERIAL_INTERFACE, --usb_device=SERIAL_INTERFACE
+                        modem port (i.e. COMX, or /dev/ttyUSBX), smartcard
+                        reader index (0, 1, 2, ...), or server for https
+  -I IMSI, --imsi=IMSI  IMSI (15 digits)
+  -E IMEI, --imei=IMEI  IMEI-SV (16 digits)
+  -K KI, --ki=KI        ki for Milenage (if not using option -u)
+  -P OP, --op=OP        op for Milenage (if not using option -u)
+  -C OPC, --opc=OPC     opc for Milenage (if not using option -u)
+  -o PLMN, --operator=PLMN
+                        Operator MCC+MNC
+  --tac1=TAC1           1st tracking area code
+  --tac2=TAC2           2nd tracking area code
+  -Z, --gtp-kernel      Use GTP Kernel. Needs libgtpnl
+  -S MAXSEG, --maxseg=MAXSEG
+                        SCTP MAX_SEG (>463 bytes)
+  --ue-radio-capability=UERADIOCAPABILITY
+                        UERadioCapability in hex string
+  -G GUTI, --guti=GUTI  GUTI in format <mcc+mcn>-<mme-group-id>-<mme-
+                        code>-<m-tmsi>
+  --mme-2=MME_2_IP      2nd MME IP Address
+  ```
