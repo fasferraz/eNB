@@ -2295,9 +2295,12 @@ def SecondaryRATDataUsageReport(dic):
 
 
 
-def ProcessS1AP(PDU, client, session_dict):
+def ProcessS1AP(PDU, client, session_dict, client_number):
 
     buffer = client.recv(4096)
+
+    if session_dict['MME-IN-USE'] != client_number:
+        return PDU, client, session_dict
     
     PDU.from_aper(buffer)
     
@@ -2557,6 +2560,7 @@ def main():
     parser.add_option("-S", "--maxseg", dest="maxseg", help="SCTP MAX_SEG (>463 bytes)")
     parser.add_option("--ue-radio-capability", dest="ueradiocapability", help="UERadioCapability in hex string")
     parser.add_option("-G", "--guti", dest="guti", help="GUTI in format <mcc+mcn>-<mme-group-id>-<mme-code>-<m-tmsi>") 
+    parser.add_option("--mme-2", dest="mme_2_ip", help="2nd MME IP Address")
 
 
     (options, args) = parser.parse_args()
@@ -2644,6 +2648,8 @@ def main():
         session_dict['ENCODED-GUTI'] = None
     
     server_address = (options.mme_ip, 36412)
+    if options.mme_2_ip is not None:
+        server_address_2 = (options.mme_2_ip, 36412)
 
     #socket options
     client = socket.socket(socket.AF_INET,socket.SOCK_STREAM,socket.IPPROTO_SCTP) 
@@ -2656,6 +2662,16 @@ def main():
     if options.maxseg is not None:
         if int(options.maxseg)>463:
             client.setsockopt(132,13,int(options.maxseg))
+    
+    if options.mme_2_ip is not None:
+        client2 = socket.socket(socket.AF_INET,socket.SOCK_STREAM,socket.IPPROTO_SCTP) 
+        client2.bind((options.eNB_ip, 0))
+   
+        sctp_default_send_param = bytearray(client2.getsockopt(132,10,32))
+        sctp_default_send_param[11]= 18
+        client2.setsockopt(132, 10, sctp_default_send_param)  
+    else:
+        client2 = None     
 
     #variables initialization 
     PDU = S1AP.S1AP_PDU_Descriptions.S1AP_PDU
@@ -2671,6 +2687,8 @@ def main():
 
 
     client.connect(server_address)
+    if options.mme_2_ip is not None:
+        client2.connect(server_address_2)
 
     s_gtpu = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     if options.gtp_kernel == False: 
@@ -2697,9 +2715,13 @@ def main():
 
   
     eMENU.print_menu(session_dict['LOG'])
+
+    session_dict['MME-IN-USE'] = 1
   
    
     socket_list = [sys.stdin ,client, dev_nbiot]
+    if options.mme_2_ip is not None:
+        socket_list.append(client2)
     
     while True:
         
@@ -2707,12 +2729,17 @@ def main():
         
         for sock in read_sockets:
             if sock == client:
-                PDU, client, session_dict = ProcessS1AP(PDU, client, session_dict)
-               
+                PDU, client, session_dict = ProcessS1AP(PDU, client, session_dict, 1)
+            
+            elif sock == client2:
+                PDU, client2, session_dict = ProcessS1AP(PDU, client2, session_dict, 2)
+
             elif sock == sys.stdin:        
                 msg = sys.stdin.readline()
-                
-                PDU, client, session_dict = eMENU.ProcessMenu(PDU, client, session_dict, msg)
+                if session_dict['MME-IN-USE'] == 1:
+                    PDU, client, session_dict = eMENU.ProcessMenu(PDU, client, session_dict, msg)
+                elif session_dict['MME-IN-USE'] == 2:
+                    PDU, client2, session_dict = eMENU.ProcessMenu(PDU, client2, session_dict, msg)
                 
                 
             elif sock == dev_nbiot:
@@ -2729,8 +2756,14 @@ def main():
                     
                     
                     message = PDU.to_aper()  
-                    client = set_stream(client, 1)
-                    bytes_sent = client.send(message)
+                    if session_dict['MME-IN-USE'] == 1:
+                        client = set_stream(client, 0)
+                        bytes_sent = client.send(message)
+                        client = set_stream(client, 1)
+                    elif session_dict['MME-IN-USE'] == 2:
+                        client2 = set_stream(client2, 0)
+                        bytes_sent = client2.send(message)
+                        client2 = set_stream(client2, 1)
 
 
 

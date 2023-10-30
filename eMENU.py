@@ -59,6 +59,7 @@ menu_list = [ '  0. Show current settings',     \
               ' 60. Set Non-IP Packet to Send',            \
               ' 61. Send Non-IP Packet',          \
               ' ',                              \
+              ' 80. Set MME to use',            \
               ' 99. Clear Log',                 \
               '  Q. Quit' ]
 
@@ -561,6 +562,12 @@ def ProcessMenu(PDU, client, session_dict, msg):
             client = set_stream(client, 1)
             bytes_sent = client.send(message)
 
+    elif msg == "80\n":
+        if session_dict['MME-IN-USE'] == 1:
+            session_dict['MME-IN-USE'] = 2       
+        elif session_dict['MME-IN-USE'] == 2:
+            session_dict['MME-IN-USE'] = 1
+        session_dict = print_log(session_dict, "MME in use: " + str(session_dict['MME-IN-USE'])) 
 
     elif msg == "99\n":
         session_dict['LOG'] = []
