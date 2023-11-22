@@ -2561,6 +2561,7 @@ def main():
     parser.add_option("--ue-radio-capability", dest="ueradiocapability", help="UERadioCapability in hex string")
     parser.add_option("-G", "--guti", dest="guti", help="GUTI in format <mcc+mcn>-<mme-group-id>-<mme-code>-<m-tmsi>") 
     parser.add_option("--mme-2", dest="mme_2_ip", help="2nd MME IP Address")
+    parser.add_option("--gtp-u", dest="gtp_u_ip", help="GTP-U address sent in S1AP. Used when eNB is behind NAT")
 
 
     (options, args) = parser.parse_args()
@@ -2682,7 +2683,10 @@ def main():
     
     # settting initial settings
     session_dict = session_dict_initialization(session_dict)
-    session_dict['ENB-GTP-ADDRESS-INT'] = ip2int(options.eNB_ip)
+    if options.gtp_u_ip is not None:
+        session_dict['ENB-GTP-ADDRESS-INT'] = ip2int(options.gtp_u_ip)
+    else:
+        session_dict['ENB-GTP-ADDRESS-INT'] = ip2int(options.eNB_ip)
     session_dict['ENB-GTP-ADDRESS'] = socket.inet_aton(options.eNB_ip)
 
 
