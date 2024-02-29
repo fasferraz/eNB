@@ -213,6 +213,7 @@ def session_dict_initialization(session_dict):
     
     session_dict['PROCESS-PAGING'] = True
     session_dict['PCSCF-RESTORATION'] = False
+    session_dict['NAS-DELIVERY-INDICATION'] = 0
 
     session_dict['NAS-KEY-SET-IDENTIFIER'] = 0
     
@@ -1839,7 +1840,8 @@ def ProcessLocationReportingControl(IEs, dic):
 
 
 def ProcessDownlinkNASTransport(IEs, dic):
-    
+    nas_delivery = False
+    nas = None
     for i in IEs:
         if i['id'] == 0:
             mme_ue_s1ap_id = i['value'][1]
@@ -1847,13 +1849,28 @@ def ProcessDownlinkNASTransport(IEs, dic):
         elif i['id'] == 26:
             nas_pdu = i['value'][1]
             dic['NAS'] = nas_pdu
+            nas = nas_pdu
+        elif i['id'] == 249:
+            if dic['NAS-DELIVERY-INDICATION'] > 0:
+                nas_delivery = True
+                
             
 
     dic = ProcessDownlinkNAS(dic)
     
     val = []
     
-    if dic['NAS'] != None or dic['NAS-SMS-MT'] != None:
+    if dic['NAS'] != None or dic['NAS-SMS-MT'] != None or nas_delivery == True:
+        if nas_delivery == True:
+            IEs = []
+            IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'reject'})
+            IEs.append({'id': 8, 'value': ('ENB-UE-S1AP-ID', dic['ENB-UE-S1AP-ID']), 'criticality': 'reject'})
+            if dic['NAS-DELIVERY-INDICATION'] == 2 and nas is not None:
+                IEs.append({'id': 26, 'value': ('NAS-PDU', nas), 'criticality': 'ignore'})
+                IEs.append({'id': 2, 'value': ('Cause', ('radioNetwork', 'radio-connection-with-ue-lost')), 'criticality': 'ignore'})
+                val.append(('initiatingMessage', {'procedureCode': 16, 'value': ('NASNonDeliveryIndication', {'protocolIEs': IEs}), 'criticality': 'ignore'}))
+            else:
+                val.append(('initiatingMessage', {'procedureCode': 57, 'value': ('NASDeliveryIndication', {'protocolIEs': IEs}), 'criticality': 'ignore'}))
         if dic['NAS'] != None:
             IEs = []
             IEs.append({'id': 0, 'value': ('MME-UE-S1AP-ID', dic['MME-UE-S1AP-ID']), 'criticality': 'reject'})

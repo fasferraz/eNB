@@ -35,6 +35,7 @@ menu_list = [ '  0. Show current settings',     \
               ' 11. Set SMS (AdditionalUpdateType)',             \
               ' 12. Set eNB-CellID/TAC',             \
               ' 13. Set P-CSCF Restoration Support',             \
+              ' 14. Set Delivery Indication',        \
               ' ',                              \
               ' 15. S1 Setup',          \
               ' 16. S1 Reset',          \
@@ -307,6 +308,17 @@ def ProcessMenu(PDU, client, session_dict, msg):
         elif session_dict['PCSCF-RESTORATION'] == False:            
             session_dict['PCSCF-RESTORATION'] = True
             session_dict = print_log(session_dict, "P-CSCF Restoration Support: True") 
+
+    elif msg == "14\n":
+        if session_dict['NAS-DELIVERY-INDICATION'] == 0:
+            session_dict['NAS-DELIVERY-INDICATION'] = 1
+            session_dict = print_log(session_dict, "Send NAS Delivery")
+        elif session_dict['NAS-DELIVERY-INDICATION'] == 1:            
+            session_dict['NAS-DELIVERY-INDICATION'] = 2
+            session_dict = print_log(session_dict, "Send NAS Non-Delivery")            
+        elif session_dict['NAS-DELIVERY-INDICATION'] == 2:            
+            session_dict['NAS-DELIVERY-INDICATION'] = 0
+            session_dict = print_log(session_dict, "Do not send NAS Delivery/Non-Delivery")             
            
     elif msg == "15\n":
         PDU.set_val(S1SetupRequest(session_dict))
