@@ -129,7 +129,7 @@ def ProcessMenu(PDU, client, session_dict, msg):
         session_dict = print_log(session_dict, "eNB TACs: [" + str(int.from_bytes(session_dict['ENB-TAC1'], byteorder='big')) + ", " + str(int.from_bytes(session_dict['ENB-TAC2'], byteorder='big')) + "], NB-IoT TAC: " + str(int.from_bytes(session_dict['ENB-TAC2'], byteorder='big')) + ", ENB-ID: " + str(session_dict['ENB-ID']) + " Cell-ID: " + str(session_dict['ENB-ID']))
         session_dict = print_log(session_dict, "Attach Mobile Identity: " + session_dict['MOBILE-IDENTITY-TYPE'])
         if session_dict['ATTACH-PDN'] == 1:
-            session_dict = print_log(session_dict, "Attach PDN: Internet")
+            session_dict = print_log(session_dict, "Attach PDN: " + session_dict['APN'])
         elif session_dict['ATTACH-PDN'] == None:
             session_dict = print_log(session_dict, "Attach PDN: Default")
         session_dict = print_log(session_dict, "Session Type: " + session_dict['SESSION-TYPE'])    
@@ -198,7 +198,7 @@ def ProcessMenu(PDU, client, session_dict, msg):
     elif msg == "3\n": #attach type, default or with apn
         if session_dict['ATTACH-PDN'] == None:
             session_dict['ATTACH-PDN'] = 1
-            session_dict = print_log(session_dict, "Attach PDN: Internet")
+            session_dict = print_log(session_dict, "Attach PDN: " + session_dict['APN'])
         elif session_dict['ATTACH-PDN'] == 1:
             session_dict['ATTACH-PDN'] = None
             session_dict = print_log(session_dict, "Attach PDN: Default")
@@ -346,6 +346,7 @@ def ProcessMenu(PDU, client, session_dict, msg):
                 session_dict['LAI'],
                 session_dict['SMS-UPDATE-TYPE'],
                 session_dict['PCSCF-RESTORATION'],
+                session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'],
                 session_dict['NAS-KEY-SET-IDENTIFIER']
             )
             
@@ -373,7 +374,8 @@ def ProcessMenu(PDU, client, session_dict, msg):
                 session_dict['TMSI'],
                 session_dict['LAI'],
                 session_dict['SMS-UPDATE-TYPE'],
-                session_dict['PCSCF-RESTORATION']
+                session_dict['PCSCF-RESTORATION'],
+                session_dict['PDN-CONNECTIVITY-REQUEST-TYPE']
             )
             session_dict['SQN'] = 0
             session_dict['ENB-UE-S1AP-ID'] = random.randrange(10000)
@@ -573,6 +575,18 @@ def ProcessMenu(PDU, client, session_dict, msg):
             message = PDU.to_aper()  
             client = set_stream(client, 1)
             bytes_sent = client.send(message)
+
+    elif msg == "70\n":
+        if session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] == 1:
+            session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] = 2
+            session_dict = print_log(session_dict, "PDN Connectivity Request-Type: Handover")
+        elif session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] == 2:            
+            session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] = 4
+            session_dict = print_log(session_dict, "PDN Connectivity Request Type: Emergency")
+        elif session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] == 4:            
+            session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] = 1
+            session_dict = print_log(session_dict, "PDN Connectivity Request-Type: Initial Request")
+
 
     elif msg == "80\n":
         if session_dict['MME-IN-USE'] == 1:

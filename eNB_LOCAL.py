@@ -158,9 +158,7 @@ def session_dict_initialization(session_dict):
     session_dict['ENC-ALG'] = 0
     session_dict['INT-ALG'] = 0 
     session_dict['ENC-KEY'] = None
-    session_dict['INT-KEY'] = None  
-    session_dict['APN'] = APN
-    
+    session_dict['INT-KEY'] = None
     
     session_dict['NAS-SMS-MT'] = None
     
@@ -221,6 +219,8 @@ def session_dict_initialization(session_dict):
 
     session_dict['NON-IP-PACKET'] = 1
     session_dict['NON-IP-PACKETS'] = [NON_IP_PACKET_1, NON_IP_PACKET_2, NON_IP_PACKET_3, NON_IP_PACKET_4]
+    
+    session_dict['PDN-CONNECTIVITY-REQUEST-TYPE'] = 1
 
     return session_dict
 
@@ -810,7 +810,7 @@ def nas_esm_data_transport(eps_bearer_identity, pti, user_data_container):
 
 #-------------------------------------------------------------#
 ### EMM ### :
-def nas_attach_request(type, esm_information_transfer_flag, eps_identity, pdp_type, attach_type, tmsi, lai, sms_update, pcscf_restoration, ksi=0):
+def nas_attach_request(type, esm_information_transfer_flag, eps_identity, pdp_type, attach_type, tmsi, lai, sms_update, pcscf_restoration, pdn_request_type, ksi=0):
     
     emm_list = []
     emm_list.append((7,0))  # protocol discriminator / 
@@ -828,7 +828,7 @@ def nas_attach_request(type, esm_information_transfer_flag, eps_identity, pdp_ty
     if attach_type == 6: #EPS Emergency Attach
         emm_list.append((0,'LV-E',nas_pdn_connectivity(0,1,pdp_type,None,pco,esm_information_transfer_flag,4)))    
     else:
-        emm_list.append((0,'LV-E',nas_pdn_connectivity(0,1,pdp_type,None,pco,esm_information_transfer_flag)))
+        emm_list.append((0,'LV-E',nas_pdn_connectivity(0,1,pdp_type,None,pco,esm_information_transfer_flag, pdn_request_type)))
     
     if type[0] == "4G":
         if attach_type == 2 and lai != None:
@@ -1125,7 +1125,7 @@ def ProcessUplinkNAS(message_type, dic):
         if dic['ATTACH-TYPE'] == 6: #If Attach Type = EPS Emergency PDN Connectity is with Emergency APN 
             dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],None, pco, None,4)        
         else:
-            dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],eNAS.encode_apn(APN), pco, None)
+            dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],eNAS.encode_apn(dic['APN']), pco, None)
         dic['UP-COUNT'] += 1 
         dic['DIR'] = 0
         nas_encrypted = nas_encrypt(dic)
@@ -2579,7 +2579,7 @@ def main():
     parser.add_option("-G", "--guti", dest="guti", help="GUTI in format <mcc+mcn>-<mme-group-id>-<mme-code>-<m-tmsi>") 
     parser.add_option("--mme-2", dest="mme_2_ip", help="2nd MME IP Address")
     parser.add_option("--gtp-u", dest="gtp_u_ip", help="GTP-U address sent in S1AP. Used when eNB is behind NAT")
-
+    parser.add_option("-A", "--apn", dest="apn", help="APN")
 
     (options, args) = parser.parse_args()
     #Detect if no options set:
@@ -2690,6 +2690,11 @@ def main():
         client2.setsockopt(132, 10, sctp_default_send_param)  
     else:
         client2 = None     
+
+    if options.apn is not None:
+        session_dict['APN'] = options.apn
+    else:
+        session_dict['APN'] = APN
 
     #variables initialization 
     PDU = S1AP.S1AP_PDU_Descriptions.S1AP_PDU
