@@ -1125,7 +1125,7 @@ def ProcessUplinkNAS(message_type, dic):
         if dic['ATTACH-TYPE'] == 6: #If Attach Type = EPS Emergency PDN Connectity is with Emergency APN 
             dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],None, pco, None,4)        
         else:
-            dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],eNAS.encode_apn(dic['APN']), pco, None)
+            dic['NAS-ENC'] = nas_pdn_connectivity(0, 1, dic['PDP-TYPE'],eNAS.encode_apn(dic['APN']), pco, None, dic['PDN-CONNECTIVITY-REQUEST-TYPE'])
         dic['UP-COUNT'] += 1 
         dic['DIR'] = 0
         nas_encrypted = nas_encrypt(dic)
