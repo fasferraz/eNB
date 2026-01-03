@@ -1966,12 +1966,14 @@ def ProcessInitialContextSetupRequest(IEs, dic):
                     dic['SGW-TEID'].append(None)
                     
                 position = dic['RAB-ID'].index(e_RAB_id)                
-                                       
-                dic['SGW-GTP-ADDRESS'][position] = (first_eRAB['transportLayerAddress'][0]).to_bytes(4, byteorder='big')
+                
+		#Retrieve ipv4 transportLayerAddress
+                ipv4_int = first_eRAB['transportLayerAddress'][0] >> 128
+
+                dic['SGW-GTP-ADDRESS'][position] = (ipv4_int).to_bytes(4, byteorder='big')
                 dic['SGW-TEID'][position] = first_eRAB['gTP-TEID']
                 if 'nAS-PDU' in first_eRAB:
                     nas.append(first_eRAB['nAS-PDU'])
-              
                 else:
                     
                     nas.append(None)
@@ -2030,7 +2032,6 @@ def ProcessInitialContextSetupRequest(IEs, dic):
             
     if dic['UECONTEXTRELEASE-CSFB'] == True:            
         val.append(UEContextReleaseRequest(dic))
-        
     return val, dic
 
 
